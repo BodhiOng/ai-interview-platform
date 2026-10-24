@@ -26,6 +26,7 @@ export default function VacancyEditPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const removedSkillIds = useRef<Set<number>>(new Set());
 
   const { register, handleSubmit, control, setValue, watch, reset } = useForm<VacancyFormValues>({
@@ -50,6 +51,7 @@ export default function VacancyEditPage() {
   };
 
   const onSubmit = async (data: VacancyFormValues) => {
+    setError(null);
     setSubmitting(true);
     try {
       await vacanciesApi.update(Number(id), {
@@ -65,6 +67,8 @@ export default function VacancyEditPage() {
         ],
       });
       navigate("/vacancies");
+    } catch (e: any) {
+      setError(e?.response?.data?.errors?.[0]?.message ?? "Failed to save vacancy.");
     } finally {
       setSubmitting(false);
     }
@@ -109,6 +113,7 @@ export default function VacancyEditPage() {
           <Label>Competency expectations</Label>
           <Textarea rows={3} {...register("competency_expectations")} />
         </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => navigate("/vacancies")}>Cancel</Button>
           <Button type="submit" disabled={submitting}>{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save Changes</Button>
