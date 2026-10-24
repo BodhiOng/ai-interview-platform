@@ -3,7 +3,7 @@
 module Api
   module V1
     class VacanciesController < ApiController
-      authorize_auth_token! :assessor
+      authorize_auth_token! :admin
 
       before_action :set_vacancy, only: %i[show update destroy]
 

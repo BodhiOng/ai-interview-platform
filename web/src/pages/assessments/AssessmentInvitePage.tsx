@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { assessmentsApi } from "@/services/assessments";
 import { LEVEL_LABELS } from "@/utils/constants";
-import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, UserRound } from "lucide-react";
+import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, UserRound, Trash2 } from "lucide-react";
 import type { Assessment, Session } from "@/types";
 
 function SessionRow({
@@ -24,12 +24,14 @@ function SessionRow({
   assessmentId,
   onCopy,
   copiedId,
+  onDelete,
 }: {
   session: Session;
   index: number;
   assessmentId: string;
   onCopy: (id: number) => void;
   copiedId: number | null;
+  onDelete: (id: number) => void;
 }) {
   const navigate = useNavigate();
   const isLive = session.status === "active";
@@ -92,6 +94,17 @@ function SessionRow({
               ) : (
                 <><Copy className="h-3 w-3 mr-1" /> Copy link</>
               )}
+            </Button>
+          )}
+          {isPending && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-destructive hover:text-destructive"
+              onClick={() => onDelete(session.id)}
+              aria-label={`Delete ${displayName} invite`}
+            >
+              <Trash2 className="h-3 w-3" />
             </Button>
           )}
           {isLive && (
@@ -186,6 +199,19 @@ export default function AssessmentInvitePage() {
     navigator.clipboard.writeText(newSession.invite_url);
     setNewSessionCopied(true);
     setTimeout(() => setNewSessionCopied(false), 2000);
+  };
+
+  const deleteSession = async (sessionId: number) => {
+    if (!window.confirm("Delete this pending candidate invite? This cannot be undone.")) return;
+
+    try {
+      await assessmentsApi.deleteSession(sessionId);
+      setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      setNewSession((current) => (current?.id === sessionId ? null : current));
+    } catch {
+      // The API interceptor handles authorization failures; keep the invite visible
+      // for retry when deletion fails for another reason.
+    }
   };
 
   if (loading) {
@@ -313,6 +339,7 @@ export default function AssessmentInvitePage() {
                     if (s) copyLink(s, sid);
                   }}
                   copiedId={copiedId}
+                  onDelete={deleteSession}
                 />
               ))}
             </CardContent>

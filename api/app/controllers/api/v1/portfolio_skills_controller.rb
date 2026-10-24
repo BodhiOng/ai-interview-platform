@@ -3,7 +3,7 @@
 module Api
   module V1
     class PortfolioSkillsController < ApiController
-      authorize_auth_token! :assessor
+      authorize_auth_token! :admin
 
       before_action :set_portfolio_skill
 

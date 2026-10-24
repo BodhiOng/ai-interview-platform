@@ -3,7 +3,7 @@
 module Api
   module V1
     class AssessmentsController < ApiController
-      authorize_auth_token! :assessor
+      authorize_auth_token! :admin
 
       before_action :set_assessment, only: %i[show update destroy]
 
@@ -49,8 +49,15 @@ module Api
 
       # DELETE /api/v1/assessments/:id
       def destroy
-        @assessment.destroy
-        json_response({ message: "Assessment deleted" })
+        if @assessment.destroy
+          json_response({ message: "Assessment deleted" })
+        else
+          json_error(
+            @assessment.errors.full_messages.first.presence ||
+              "Assessment cannot be deleted while it has sessions",
+            :conflict
+          )
+        end
       end
 
       private

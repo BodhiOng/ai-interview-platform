@@ -27,6 +27,7 @@ import type { CandidateInfo, InterviewState, InterviewSpeaker, TranscriptTurn } 
 export default function InterviewPage() {
   const { token } = useParams<{ token: string }>();
   const [candidateInfo, setCandidateInfo] = useState<CandidateInfo | null>(null);
+  const [inviteError, setInviteError] = useState(false);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [interviewState, setInterviewState] = useState<InterviewState>("idle");
   const [speaker, setSpeaker] = useState<InterviewSpeaker>(null);
@@ -48,7 +49,7 @@ export default function InterviewPage() {
         setSessionId(res.data.session_id);
         if (res.data.session_status === "ended") setInterviewState("complete");
       })
-      .catch(() => setInterviewState("complete"));
+      .catch(() => setInviteError(true));
   }, [token]);
 
   const muteRef = useRef<(() => void) | null>(null);
@@ -188,6 +189,18 @@ export default function InterviewPage() {
       : "reconnecting";
 
   // ── State A: Pre-start ──────────────────────────────────────────────────
+  if (inviteError) {
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-3">
+        <h2 className="text-xl font-semibold">Interview invite unavailable</h2>
+        <p className="text-sm text-muted-foreground">
+          This interview invitation is invalid, expired, or has been withdrawn.
+          Please contact the hiring team for a new invitation.
+        </p>
+      </div>
+    );
+  }
+
   if (interviewState === "idle") {
     return (
       <div className="max-w-xl mx-auto px-4 py-8 space-y-6">
