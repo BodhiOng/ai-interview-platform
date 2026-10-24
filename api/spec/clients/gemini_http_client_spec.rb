@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'faraday'
+require 'faraday/retry'
 require_relative '../../app/clients/gemini/http_client'
 
 RSpec.describe Gemini::HttpClient do
