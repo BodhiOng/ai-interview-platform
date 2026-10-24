@@ -5,11 +5,11 @@ module Api
     class VacanciesController < ApiController
       authorize_auth_token! :admin
 
-      before_action :set_vacancy, only: %i[show update destroy]
+      before_action :set_vacancy, only: %i[show update destroy archive unarchive]
 
       # GET /api/v1/vacancies
       def index
-        vacancies = paginate(Vacancy.order(created_at: :desc))
+        vacancies = paginate(vacancy_scope.order(created_at: :desc))
 
         json_response(
           vacancies: vacancies.map(&method(:vacancy_json)),
@@ -45,11 +45,37 @@ module Api
 
       # DELETE /api/v1/vacancies/:id
       def destroy
-        @vacancy.destroy
-        json_response(message: "Vacancy deleted")
+        if @vacancy.fit_gap_reports.exists?
+          @vacancy.update!(archived_at: Time.current)
+          json_response(message: "Vacancy archived; Fit/Gap reports preserved")
+        elsif @vacancy.destroy
+          json_response(message: "Vacancy deleted")
+        else
+          json_error(@vacancy.errors.full_messages.first || "Vacancy could not be deleted", :conflict)
+        end
+      end
+
+      def archive
+        @vacancy.update!(archived_at: Time.current)
+        json_response(message: "Vacancy archived; Fit/Gap reports preserved")
+      end
+
+      def unarchive
+        @vacancy.update!(archived_at: nil)
+        json_response(message: "Vacancy restored")
+      end
+
+      def bulk_archive
+        ids = Array(params[:ids]).filter_map { |id| Integer(id, exception: false) }
+        archived = Vacancy.active.where(id: ids).update_all(archived_at: Time.current)
+        json_response(message: "Vacancies archived", archived_count: archived)
       end
 
       private
+
+      def vacancy_scope
+        params[:archived].to_s == "true" ? Vacancy.archived : Vacancy.active
+      end
 
       def set_vacancy
         @vacancy = Vacancy.find(params[:id])
@@ -76,7 +102,8 @@ module Api
           competency_expectations:  vacancy.competency_expectations,
           created_by:               vacancy.created_by,
           created_at:               vacancy.created_at,
-          updated_at:               vacancy.updated_at
+          updated_at:               vacancy.updated_at,
+          archived_at:              vacancy.archived_at
         }
       end
 

@@ -145,6 +145,28 @@ export default function InterviewPage() {
     onFrame: send,
   });
 
+  // An assessment can be archived while this page is already open. Re-check the
+  // invite so an existing candidate page does not remain usable indefinitely.
+  useEffect(() => {
+    if (!token || !sessionId || inviteError) return;
+
+    const checkInvite = async () => {
+      try {
+        await sessionsApi.getCandidateInfo(token);
+      } catch (error) {
+        const status = (error as { response?: { status?: number } }).response?.status;
+        if (status === 404) {
+          stopCapture();
+          disconnect();
+          setInviteError(true);
+        }
+      }
+    };
+
+    const interval = setInterval(checkInvite, 5_000);
+    return () => clearInterval(interval);
+  }, [token, sessionId, inviteError, stopCapture, disconnect]);
+
   muteRef.current = mute;
   unmuteRef.current = unmute;
 

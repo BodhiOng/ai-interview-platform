@@ -5,12 +5,12 @@ module Api
     class AssessmentsController < ApiController
       authorize_auth_token! :admin
 
-      before_action :set_assessment, only: %i[show update destroy]
+      before_action :set_assessment, only: %i[show update destroy archive unarchive]
 
       # GET /api/v1/assessments
       def index
         assessments = paginate(
-          Assessment.includes(:sessions).order(created_at: :desc)
+          assessment_scope.includes(:sessions).order(created_at: :desc)
         )
 
         json_response(
@@ -60,7 +60,48 @@ module Api
         end
       end
 
+      def archive
+        Assessment.transaction do
+          mark_unfinished_sessions_failed(@assessment)
+          @assessment.update!(archived_at: Time.current)
+        end
+        json_response(message: "Assessment archived")
+      end
+
+      def unarchive
+        @assessment.update!(archived_at: nil)
+        json_response(message: "Assessment restored")
+      end
+
+      def bulk_archive
+        ids = Array(params[:ids]).filter_map { |id| Integer(id, exception: false) }
+        archived = 0
+        Assessment.transaction do
+          assessments = Assessment.active.where(id: ids)
+          assessments.each { |assessment| mark_unfinished_sessions_failed(assessment) }
+          archived = assessments.update_all(archived_at: Time.current)
+        end
+        json_response(message: "Assessments archived", archived_count: archived)
+      end
+
       private
+
+      def assessment_scope
+        params[:archived].to_s == "true" ? Assessment.archived : Assessment.active
+      end
+
+      def mark_unfinished_sessions_failed(assessment)
+        ended_at = Time.current
+
+        assessment.sessions.where(status: %w[pending active]).find_each do |session|
+          session.update!(
+            status: 'ended',
+            end_reason: 'error',
+            ended_at: ended_at,
+            duration_seconds: session.started_at ? (ended_at - session.started_at).to_i : nil
+          )
+        end
+      end
 
       def set_assessment
         @assessment = Assessment.find(params[:id])
@@ -94,6 +135,7 @@ module Api
           created_by:     assessment.created_by,
           created_at:     assessment.created_at,
           updated_at:     assessment.updated_at,
+          archived_at:    assessment.archived_at,
           latest_session: latest && {
             id:         latest.id,
             status:     latest.status,

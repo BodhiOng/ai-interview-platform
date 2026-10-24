@@ -9,9 +9,9 @@ export interface AssessmentPayload {
 }
 
 export const assessmentsApi = {
-  list: (page = 1) =>
+  list: (page = 1, archived = false) =>
     api.get<{ assessments: Assessment[]; meta: PaginationMeta }>("/assessments", {
-      params: { page },
+      params: { page, archived },
     }),
 
   get: (id: number) =>
@@ -30,6 +30,9 @@ export const assessmentsApi = {
     ),
 
   delete: (id: number) => api.delete(`/assessments/${id}`),
+  archive: (id: number) => api.patch(`/assessments/${id}/archive`),
+  unarchive: (id: number) => api.patch(`/assessments/${id}/unarchive`),
+  bulkArchive: (ids: number[]) => api.post("/assessments/bulk_archive", { ids }),
 
   getSessions: (assessmentId: number) =>
     api.get<{ sessions: Session[] }>(`/assessments/${assessmentId}/sessions`),

@@ -170,11 +170,19 @@ export default function AssessmentInvitePage() {
   }, [sessions, loadSessions]);
 
   const openInviteDialog = () => {
+    if (assessment?.archived_at) {
+      window.alert("Candidate invitations are only available for unarchived assessments. Unarchive this assessment first.");
+      return;
+    }
     setCandidateNameInput("");
     setShowInviteDialog(true);
   };
 
   const handleInviteCandidate = async () => {
+    if (assessment?.archived_at) {
+      window.alert("Candidate invitations are only available for unarchived assessments. Unarchive this assessment first.");
+      return;
+    }
     setCreatingSession(true);
     setShowInviteDialog(false);
     setNewSession(null);
@@ -245,12 +253,23 @@ export default function AssessmentInvitePage() {
           <Button variant="outline" size="sm" onClick={() => navigate(`/assessments/${id}/edit`)}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
           </Button>
-          <Button size="sm" onClick={openInviteDialog} disabled={creatingSession}>
+          <Button
+            size="sm"
+            onClick={openInviteDialog}
+            disabled={creatingSession || !!assessment?.archived_at}
+            title={assessment?.archived_at ? "Only available for unarchived assessments" : undefined}
+          >
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             {creatingSession ? "Creating..." : "Invite Candidate"}
           </Button>
         </div>
       </div>
+
+      {assessment?.archived_at && (
+        <div className="rounded-lg border border-amber-400/40 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Candidate invitations are only available for unarchived assessments. Unarchive this assessment before creating a new invite.
+        </div>
+      )}
 
       {/* Invite candidate dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>

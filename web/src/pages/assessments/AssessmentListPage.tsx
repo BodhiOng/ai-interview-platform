@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { assessmentsApi } from "@/services/assessments";
-import { Plus, Clock, ChevronRight } from "lucide-react";
+import { Plus, Clock, ChevronRight, Archive } from "lucide-react";
 import type { Assessment } from "@/types";
 
 function SessionSummary({ session }: { session?: Assessment["latest_session"] }) {
@@ -31,23 +31,61 @@ export default function AssessmentListPage() {
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [archiving, setArchiving] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
+    setLoading(true);
     assessmentsApi
-      .list()
+      .list(1, showArchived)
       .then((res) => setAssessments(res.data.assessments))
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showArchived]);
+
+  const archiveSelected = async () => {
+    if (!selectedIds.length || !window.confirm(`Archive ${selectedIds.length} assessment(s)?`)) return;
+    setArchiving(true);
+    try {
+      await assessmentsApi.bulkArchive(selectedIds);
+      setAssessments((current) => current.filter((assessment) => !selectedIds.includes(assessment.id)));
+      setSelectedIds([]);
+    } catch { setError(true); } finally { setArchiving(false); }
+  };
+
+  const unarchiveOne = async (id: number) => {
+    setArchiving(true);
+    try {
+      await assessmentsApi.unarchive(id);
+      setAssessments((current) => current.filter((assessment) => assessment.id !== id));
+    } catch { setError(true); } finally { setArchiving(false); }
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Assessments</h1>
-        <Button onClick={() => navigate("/assessments/new")}>
-          <Plus className="h-4 w-4 mr-1.5" /> New Assessment
-        </Button>
+        <div className="flex gap-2">
+          {!showArchived && !selectionMode && <Button variant="outline" onClick={() => setSelectionMode(true)}>Select</Button>}
+          {!showArchived && selectionMode && (
+            <>
+              <Button variant="outline" onClick={() => setSelectedIds(assessments.length > 0 && assessments.length === selectedIds.length ? [] : assessments.map((assessment) => assessment.id))}>
+                {assessments.length > 0 && assessments.length === selectedIds.length ? "Clear all" : "Select all"}
+              </Button>
+              {selectedIds.length > 0 && <Button variant="outline" onClick={archiveSelected} disabled={archiving}><Archive className="h-4 w-4 mr-1.5" />Archive selected</Button>}
+              <Button variant="ghost" onClick={() => { setSelectionMode(false); setSelectedIds([]); }}>Cancel</Button>
+            </>
+          )}
+          <Button onClick={() => navigate("/assessments/new")}><Plus className="h-4 w-4 mr-1.5" />New Assessment</Button>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <Button variant={!showArchived ? "default" : "outline"} onClick={() => { setShowArchived(false); setSelectedIds([]); setSelectionMode(false); }}>Active</Button>
+        <Button variant={showArchived ? "default" : "outline"} onClick={() => { setShowArchived(true); setSelectedIds([]); setSelectionMode(false); }}>Archived</Button>
       </div>
 
       {error && (
@@ -76,7 +114,9 @@ export default function AssessmentListPage() {
               onClick={() => navigate(`/assessments/${a.id}/invite`)}
             >
               <CardContent className="py-3 px-4 flex items-center justify-between">
-                <div>
+                <div className="flex items-center gap-3">
+                  {selectionMode && <input type="checkbox" aria-label={`Select ${a.name}`} checked={selectedIds.includes(a.id)} onChange={() => setSelectedIds((current) => current.includes(a.id) ? current.filter((id) => id !== a.id) : [...current, a.id])} onClick={(event) => event.stopPropagation()} />}
+                  <div>
                   <p className="font-medium text-sm">{a.name}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                     <span className="flex items-center gap-1">
@@ -91,7 +131,11 @@ export default function AssessmentListPage() {
                     )}
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex items-center gap-2">
+                  {showArchived && <Button variant="outline" size="sm" disabled={archiving} onClick={(event) => { event.stopPropagation(); unarchiveOne(a.id); }}>Unarchive</Button>}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
               </CardContent>
             </Card>
           ))}

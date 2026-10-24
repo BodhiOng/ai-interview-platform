@@ -22,6 +22,10 @@ module Api
       def create
         assessment = Assessment.find(params[:assessment_id])
 
+        if assessment.archived?
+          return json_error("Archived assessments cannot accept candidate sessions", :unprocessable_entity)
+        end
+
         session = assessment.sessions.new(
           candidate_id:   params.dig(:session, :candidate_id),
           candidate_name: params.dig(:session, :candidate_name).presence,
@@ -133,6 +137,10 @@ module Api
         session = Session.unscoped.find_by(invite_token: params[:token])
         return json_error("Invalid or expired invite token", :not_found) unless session
 
+        if session.assessment&.archived?
+          return json_error("This invite is no longer available", :not_found)
+        end
+
         return json_response(ended: true, message: "Session already ended") if session.ended?
 
         # No coverage re-check here. The backend WS already verified all_covered
@@ -157,6 +165,10 @@ module Api
 
         unless assessment
           return json_error("Assessment not found", :not_found)
+        end
+
+        if assessment.archived?
+          return json_error("This invite is no longer available", :not_found)
         end
 
         json_response(
