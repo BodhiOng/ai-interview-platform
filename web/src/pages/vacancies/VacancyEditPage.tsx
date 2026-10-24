@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ export default function VacancyEditPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const removedSkillIds = useRef<Set<number>>(new Set());
 
   const { register, handleSubmit, control, setValue, watch, reset } = useForm<VacancyFormValues>({
     defaultValues: { role_title: "", culture_dimensions: "", competency_expectations: "", skills: [] },
@@ -35,9 +36,18 @@ export default function VacancyEditPage() {
   useEffect(() => {
     vacanciesApi.get(Number(id)).then((res) => {
       const v = res.data.vacancy;
+      removedSkillIds.current.clear();
       reset({ role_title: v.role_title, culture_dimensions: v.culture_dimensions, competency_expectations: v.competency_expectations, skills: v.skills });
     }).catch(() => {}).finally(() => setLoading(false));
   }, [id, reset]);
+
+  const removeSkill = (index: number) => {
+    const skill = watch(`skills.${index}`);
+    if (typeof skill?.id === "number") {
+      removedSkillIds.current.add(skill.id);
+    }
+    remove(index);
+  };
 
   const onSubmit = async (data: VacancyFormValues) => {
     setSubmitting(true);
@@ -46,7 +56,13 @@ export default function VacancyEditPage() {
         role_title: data.role_title,
         culture_dimensions: data.culture_dimensions,
         competency_expectations: data.competency_expectations,
-        vacancy_skills_attributes: data.skills,
+        vacancy_skills_attributes: [
+          ...data.skills,
+          ...Array.from(removedSkillIds.current, (skillId) => ({
+            id: skillId,
+            _destroy: true,
+          })),
+        ],
       });
       navigate("/vacancies");
     } finally {
@@ -75,7 +91,7 @@ export default function VacancyEditPage() {
             <div key={field.id} className="border rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">{watch(`skills.${index}.skill_label`)}</span>
-                <button type="button" onClick={() => remove(index)} className="text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => removeSkill(index)} className="text-muted-foreground hover:text-destructive" aria-label="Remove skill"><X className="h-4 w-4" /></button>
               </div>
               <LevelRadio value={watch(`skills.${index}.expected_level`) ?? 3} onChange={(v) => setValue(`skills.${index}.expected_level`, v)} />
             </div>
