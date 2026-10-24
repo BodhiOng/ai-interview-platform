@@ -2,6 +2,7 @@
 
 require 'prawn'
 require 'prawn/table'
+require 'ostruct'
 
 module Exports
   # N14: Generates a PDF export of a portfolio, optionally including a fit/gap report.
@@ -16,12 +17,15 @@ module Exports
       'not_assessed' => 'Not Assessed'
     }.freeze
 
-    def initialize(portfolio:, vacancy: nil)
-      @portfolio   = portfolio
-      @vacancy     = vacancy
-      @session     = portfolio.session
-      @assessment  = @session.assessment
-      @fit_gap     = vacancy ? FitGapReport.find_by(portfolio: portfolio, vacancy: vacancy) : nil
+    def initialize(portfolio:, vacancy: nil, snapshot: nil, fit_gap_report: nil, generated_at: nil, portfolio_version: nil)
+      @portfolio       = portfolio
+      @snapshot        = snapshot
+      @vacancy         = vacancy
+      @session         = portfolio.session
+      @assessment      = @session.assessment
+      @generated_at    = generated_at || Time.current
+      @portfolio_version = portfolio_version
+      @fit_gap         = fit_gap_report || (vacancy ? FitGapReport.find_by(portfolio: portfolio, vacancy: vacancy, portfolio_revision_id: nil) : nil)
     end
 
     # Returns PDF binary string.
@@ -46,7 +50,8 @@ module Exports
       pdf.font_size(10) do
         pdf_text(pdf, "Session: #{@session.id}")
         pdf_text(pdf, "Duration: #{format_duration(@session.duration_seconds)}")
-        pdf_text(pdf, "Generated: #{Time.current.strftime('%Y-%m-%d %H:%M')}")
+        pdf_text(pdf, "Generated: #{@generated_at.strftime('%Y-%m-%d %H:%M')}")
+        pdf_text(pdf, "Portfolio version: #{@portfolio_version || 'current'}")
       end
 
       pdf.stroke_horizontal_rule
@@ -57,7 +62,7 @@ module Exports
       pdf.font_size(16) { pdf_text(pdf, "Skill Portfolio", style: :bold) }
       pdf.move_down 8
 
-      skills = @portfolio.portfolio_skills.includes(:assessor_override)
+      skills = snapshot_skills
       configured = skills.reject(&:is_discovered)
       discovered = skills.select(&:is_discovered)
 
@@ -72,6 +77,31 @@ module Exports
         pdf.font_size(13) { pdf_text(pdf, "Discovered Skills", style: :bold) }
         pdf.move_down 6
         discovered.each { |skill| render_skill_card(pdf, skill) }
+      end
+    end
+
+    def snapshot_skills
+      return @portfolio.portfolio_skills.includes(:assessor_override) unless @snapshot
+
+      overrides = Array(@snapshot['overrides'] || @snapshot[:overrides]).index_by do |override|
+        override['portfolio_skill_id'] || override[:portfolio_skill_id]
+      end
+
+      Array(@snapshot['skills'] || @snapshot[:skills]).map do |skill|
+        skill_id = skill['id'] || skill[:id]
+        override = overrides[skill_id]
+        OpenStruct.new(
+          skill_label:        skill['skill_label'] || skill[:skill_label],
+          is_discovered:      skill['is_discovered'] || skill[:is_discovered],
+          ai_level:           skill['ai_level'] || skill[:ai_level],
+          ai_confidence:      skill['ai_confidence'] || skill[:ai_confidence],
+          evidence:           skill['evidence'] || skill[:evidence] || [],
+          competency_summary: skill['competency_summary'] || skill[:competency_summary],
+          assessor_override:  override && OpenStruct.new(
+            override_level:  override['override_level'] || override[:override_level],
+            assessor_notes:  override['assessor_notes'] || override[:assessor_notes]
+          )
+        )
       end
     end
 
@@ -117,7 +147,8 @@ module Exports
     def render_fit_gap_section(pdf)
       pdf.start_new_page
 
-      pdf.font_size(16) { pdf_text(pdf, "Fit/Gap Analysis - #{@vacancy.role_title}", style: :bold) }
+      fit_gap_title = "Fit/Gap Analysis - #{@vacancy.role_title}"
+      pdf.font_size(16) { pdf_text(pdf, fit_gap_title, style: :bold) }
       pdf.move_down 8
 
       comparisons = @fit_gap.skill_comparisons
@@ -127,7 +158,7 @@ module Exports
         table_data << [
           pdf_value(c['skill_label']),
           c['expected_level'] ? "L#{c['expected_level']}" : '-',
-          c['candidate_level'] ? "L#{c['candidate_level']}" : '-',
+          c['candidate_level'] ? "#{override_applied?(c) ? '✏️ ' : ''}L#{c['candidate_level']}" : '-',
           pdf_value(RESULT_LABELS[c['result']] || c['result']),
           c['delta'] ? (c['delta'] > 0 ? "+#{c['delta']}" : c['delta'].to_s) : '-'
         ]
@@ -153,6 +184,25 @@ module Exports
         pdf.move_down 4
         pdf.font_size(10) { pdf_text(pdf, @fit_gap.overall_narrative) }
       end
+    end
+
+    def override_applied?(comparison)
+      return true if comparison['is_override']
+
+      labels = if @snapshot
+                 skills = Array(@snapshot['skills'] || @snapshot[:skills])
+                 skill_labels_by_id = skills.index_by { |skill| skill['id'] || skill[:id] }
+                 override_ids = Array(@snapshot['overrides'] || @snapshot[:overrides]).map do |override|
+                   override['portfolio_skill_id'] || override[:portfolio_skill_id]
+                 end
+                 override_ids.filter_map { |skill_id| skill_labels_by_id[skill_id]&.then { |skill| skill['skill_label'] || skill[:skill_label] } }
+               else
+                 @portfolio.portfolio_skills.includes(:assessor_override).filter_map do |skill|
+                   skill.skill_label if skill.assessor_override.present?
+                 end
+               end
+
+      labels.include?(comparison['skill_label'])
     end
 
     def configure_font(pdf)

@@ -162,10 +162,11 @@ module Portfolios
     end
 
     def save_baseline_skills(portfolio)
+      preserved_overrides = capture_overrides(portfolio)
       portfolio.portfolio_skills.destroy_all
 
       @session.assessment.assessment_skills.order(:display_order).each do |skill|
-        portfolio.portfolio_skills.create!(
+        portfolio_skill = portfolio.portfolio_skills.create!(
           skill_id:           skill.skill_id,
           skill_label:        skill.skill_label,
           is_discovered:      false,
@@ -174,6 +175,7 @@ module Portfolios
           evidence:           [],
           competency_summary: 'No candidate responses were recorded, so proficiency could not be demonstrated.'
         )
+        restore_override(portfolio_skill, preserved_overrides)
       end
     end
 
@@ -181,12 +183,14 @@ module Portfolios
       data = response.is_a?(Hash) ? response : JSON.parse(response)
       candidate_text = candidate_turns.map(&:text).join(' ')
 
+      preserved_overrides = capture_overrides(portfolio)
+
       # Destroy existing skills (idempotent regeneration)
       portfolio.portfolio_skills.destroy_all
 
       (data['configured_skills'] || []).each do |skill_data|
         evidence = valid_evidence(skill_data['evidence'], candidate_text)
-        portfolio.portfolio_skills.create!(
+        portfolio_skill = portfolio.portfolio_skills.create!(
           skill_id:           skill_data['skill_id'],
           skill_label:        skill_data['skill_label'],
           is_discovered:      false,
@@ -195,6 +199,7 @@ module Portfolios
           evidence:           evidence,
           competency_summary: evidence.empty? ? insufficient_evidence_summary : skill_data['competency_summary']
         )
+        restore_override(portfolio_skill, preserved_overrides)
       end
 
       (data['discovered_skills'] || []).each do |skill_data|
@@ -211,6 +216,29 @@ module Portfolios
           competency_summary: skill_data['competency_summary']
         )
       end
+    end
+
+    def capture_overrides(portfolio)
+      portfolio.portfolio_skills.includes(:assessor_override).each_with_object({}) do |skill, overrides|
+        override = skill.assessor_override
+        next unless override
+
+        key = skill.skill_id.present? ? "skill:#{skill.skill_id}" : "label:#{skill.skill_label}"
+        overrides[key] = {
+          override_level: override.override_level,
+          assessor_notes: override.assessor_notes,
+          overridden_by:  override.overridden_by,
+          overridden_at:  override.overridden_at
+        }
+      end
+    end
+
+    def restore_override(portfolio_skill, preserved_overrides)
+      key = portfolio_skill.skill_id.present? ? "skill:#{portfolio_skill.skill_id}" : "label:#{portfolio_skill.skill_label}"
+      attributes = preserved_overrides[key]
+      return unless attributes
+
+      portfolio_skill.create_assessor_override!(attributes.merge(ai_level: portfolio_skill.ai_level))
     end
 
     def valid_evidence(evidence, candidate_text)

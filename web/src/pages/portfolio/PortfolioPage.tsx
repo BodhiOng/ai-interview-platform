@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,8 +15,8 @@ import { sessionsApi } from "@/services/sessions";
 import { vacanciesApi } from "@/services/vacancies";
 import { portfoliosApi } from "@/services/portfolios";
 import { usePolling } from "@/hooks/usePolling";
-import { ArrowLeft, Download, Loader2, RefreshCw, Zap, FileText } from "lucide-react";
-import type { Portfolio, AssessorOverride, Vacancy } from "@/types";
+import { ArrowLeft, Download, Eye, Loader2, RefreshCw, Zap, FileText } from "lucide-react";
+import type { Portfolio, PortfolioRevision, AssessorOverride, Vacancy } from "@/types";
 
 export default function PortfolioPage() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>();
@@ -23,6 +29,8 @@ export default function PortfolioPage() {
   const [selectedVacancy, setSelectedVacancy] = useState<string>("");
   const [exporting, setExporting] = useState<"pdf" | "json" | null>(null);
   const [candidateName, setCandidateName] = useState<string | null>(null);
+  const [revisions, setRevisions] = useState<PortfolioRevision[]>([]);
+  const [selectedRevision, setSelectedRevision] = useState<PortfolioRevision | null>(null);
 
   const fetchPortfolio = useCallback(async () => {
     const res = await sessionsApi.getPortfolio(Number(sessionId));
@@ -51,16 +59,28 @@ export default function PortfolioPage() {
       .finally(() => setLoading(false));
   }, [fetchPortfolio, sessionId]);
 
+  useEffect(() => {
+    if (!portfolio) return;
+    sessionsApi.getPortfolioHistory(Number(sessionId))
+      .then((res) => setRevisions(res.data.revisions))
+      .catch(() => {});
+  }, [portfolio, sessionId, generating]);
+
   // Poll while generating
   usePolling(fetchPortfolio, 5000, generating);
 
   const handleOverrideSaved = (skillId: number, override: AssessorOverride) => {
+    if (selectedRevision) return;
     setOverrides((prev) => ({ ...prev, [skillId]: override }));
   };
 
+  const displayedSkills = selectedRevision?.snapshot.skills ?? portfolio?.skills ?? [];
+  const displayedOverrides = selectedRevision?.snapshot.overrides ?? Object.values(overrides);
+
   const handleRunFitGap = () => {
     if (!selectedVacancy || !portfolio) return;
-    navigate(`/assessments/${id}/sessions/${sessionId}/fitgap/${selectedVacancy}`);
+    const revisionQuery = selectedRevision ? `?portfolio_revision_id=${selectedRevision.id}` : "";
+    navigate(`/assessments/${id}/sessions/${sessionId}/fitgap/${selectedVacancy}${revisionQuery}`);
   };
 
   const handleExport = async (format: "pdf" | "json") => {
@@ -70,7 +90,8 @@ export default function PortfolioPage() {
       const res = await portfoliosApi.exportPortfolio(
         portfolio.id,
         format,
-        selectedVacancy ? Number(selectedVacancy) : undefined
+        selectedVacancy ? Number(selectedVacancy) : undefined,
+        selectedRevision?.id
       );
       if (format === "json") {
         const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
@@ -105,7 +126,7 @@ export default function PortfolioPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
@@ -130,24 +151,34 @@ export default function PortfolioPage() {
           </Link>
           {!generating && portfolio && (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleExport("pdf")}
-                disabled={!!exporting}
-              >
-                {exporting === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
-                PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleExport("json")}
-                disabled={!!exporting}
-              >
-                {exporting === "json" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
-                JSON
-              </Button>
+              {portfolio.generation_status === "complete" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    await sessionsApi.regeneratePortfolio(Number(sessionId));
+                    setGenerating(true);
+                  }}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1" /> Regenerate
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={!!exporting}>
+                    {exporting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+                    Download
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                    Download PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("json")}>
+                    Download JSON
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
         </div>
@@ -185,24 +216,26 @@ export default function PortfolioPage() {
 
       {/* Ready state */}
       {!generating && portfolio?.generation_status === "complete" && (
-        <>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] items-start">
+          <main className="space-y-6">
           {/* Configured skills */}
           <div className="space-y-3">
             <h2 className="text-sm font-semibold">Configured Skills</h2>
-            {portfolio.skills
+            {displayedSkills
               .filter((s) => !s.is_discovered)
               .map((skill) => (
                 <SkillPortfolioCard
                   key={skill.id}
                   skill={skill}
-                  override={overrides[skill.id]}
+                  override={displayedOverrides.find((override) => override.portfolio_skill_id === skill.id)}
                   onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
+                  readOnly={!!selectedRevision}
                 />
               ))}
           </div>
 
           {/* Discovered skills */}
-          {portfolio.skills.some((s) => s.is_discovered) && (
+          {displayedSkills.some((s) => s.is_discovered) && (
             <>
               <Separator />
               <div className="space-y-3">
@@ -215,14 +248,15 @@ export default function PortfolioPage() {
                     Skills the AI probed that were not in the original assessment
                   </p>
                 </div>
-                {portfolio.skills
+                {displayedSkills
                   .filter((s) => s.is_discovered)
                   .map((skill) => (
                     <SkillPortfolioCard
                       key={skill.id}
                       skill={skill}
-                      override={overrides[skill.id]}
+                      override={displayedOverrides.find((override) => override.portfolio_skill_id === skill.id)}
                       onOverrideSaved={(o) => handleOverrideSaved(skill.id, o)}
+                      readOnly={!!selectedRevision}
                     />
                   ))}
               </div>
@@ -230,11 +264,61 @@ export default function PortfolioPage() {
           )}
 
           <Separator />
+          </main>
+
+          <aside className="space-y-6 lg:sticky lg:top-6">
+          {revisions.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold">Portfolio history</h2>
+                {selectedRevision && (
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedRevision(null)}>
+                    View current
+                  </Button>
+                )}
+              </div>
+              <div className="border rounded-lg divide-y">
+                {revisions.map((revision) => (
+                  <button
+                    key={revision.id}
+                    type="button"
+                    onClick={() => setSelectedRevision(revision)}
+                    className={`w-full px-3 py-2 text-xs flex items-center justify-between text-left transition-colors hover:bg-accent ${
+                      selectedRevision?.id === revision.id ? "bg-accent" : ""
+                    }`}
+                  >
+                      <span className="flex items-center gap-1.5">
+                      Version {revision.version}
+                        {selectedRevision?.id === revision.id && (
+                          <Eye className="h-3.5 w-3.5 text-primary" aria-label="Currently viewing" />
+                        )}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {revision.generated_at ? new Date(revision.generated_at).toLocaleString() : "Not generated"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {selectedRevision && (
+                <p className="text-xs text-muted-foreground">
+                  Viewing a read-only historical version. Assessor overrides are disabled until you return to the current report.
+                </p>
+              )}
+            </div>
+          )}
+
+          <Separator />
 
           {/* Fit/Gap */}
-          <div className="flex items-center gap-3">
+          <div className="border rounded-lg p-4 space-y-3">
+            <div>
+              <h2 className="text-sm font-semibold">Fit/Gap analysis</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Compare this portfolio with a vacancy.
+              </p>
+            </div>
             <Select value={selectedVacancy} onValueChange={setSelectedVacancy}>
-              <SelectTrigger className="w-56">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Choose vacancy..." />
               </SelectTrigger>
               <SelectContent>
@@ -245,11 +329,12 @@ export default function PortfolioPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Button onClick={handleRunFitGap} disabled={!selectedVacancy}>
+            <Button className="w-full" onClick={handleRunFitGap} disabled={!selectedVacancy}>
               Run Fit/Gap Analysis →
             </Button>
           </div>
-        </>
+          </aside>
+        </div>
       )}
     </div>
   );

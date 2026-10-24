@@ -33,6 +33,7 @@ Rails.application.routes.draw do
           get  :coverage
           get  :transcript
           get  :portfolio, to: 'portfolios#show'
+          get  'portfolio/history', to: 'portfolios#history'
           post 'portfolio/regenerate', to: 'portfolios#regenerate'
         end
       end

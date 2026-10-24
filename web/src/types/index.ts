@@ -86,6 +86,20 @@ export interface Portfolio {
   overrides: AssessorOverride[];
 }
 
+export interface PortfolioRevision {
+  id: number;
+  portfolio_id: number;
+  version: number;
+  generation_status: "pending" | "generating" | "complete" | "failed";
+  generated_at?: string;
+  generation_error?: string;
+  snapshot: {
+    skills: PortfolioSkill[];
+    overrides: AssessorOverride[];
+  };
+  created_at: string;
+}
+
 export interface PortfolioSkill {
   id: number;
   skill_id?: number;
@@ -131,7 +145,8 @@ export type SkillComparisonResult = "match" | "gap" | "exceed" | "not_assessed";
 
 export interface SkillComparison {
   skill_label: string;
-  required_level: number;
+  expected_level: number;
+  required_level?: number;
   candidate_level?: number;
   result: SkillComparisonResult;
   delta?: number;
@@ -142,6 +157,8 @@ export interface FitGapReport {
   id: number;
   portfolio_id: number;
   vacancy_id: number;
+  portfolio_revision_id?: number;
+  portfolio_version?: number;
   skill_comparisons: SkillComparison[];
   culture_narrative: string;
   overall_narrative: string;
