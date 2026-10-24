@@ -27,6 +27,7 @@ module Exports
     # Returns PDF binary string.
     def call
       Prawn::Document.new(page_size: 'A4', margin: [40, 50, 40, 50]) do |pdf|
+        @unicode_font_available = configure_font(pdf)
         render_header(pdf)
         render_portfolio_section(pdf)
         render_fit_gap_section(pdf) if @fit_gap
@@ -37,15 +38,15 @@ module Exports
     private
 
     def render_header(pdf)
-      pdf.font_size(22) { pdf.text @assessment.name, style: :bold }
+      pdf.font_size(22) { pdf_text(pdf, @assessment.name, style: :bold) }
       pdf.move_down 4
-      pdf.font_size(12) { pdf.text "Skill Portfolio Report" }
+      pdf.font_size(12) { pdf_text(pdf, "Skill Portfolio Report") }
       pdf.move_down 4
 
       pdf.font_size(10) do
-        pdf.text "Session: #{@session.id}"
-        pdf.text "Duration: #{format_duration(@session.duration_seconds)}"
-        pdf.text "Generated: #{Time.current.strftime('%Y-%m-%d %H:%M')}"
+        pdf_text(pdf, "Session: #{@session.id}")
+        pdf_text(pdf, "Duration: #{format_duration(@session.duration_seconds)}")
+        pdf_text(pdf, "Generated: #{Time.current.strftime('%Y-%m-%d %H:%M')}")
       end
 
       pdf.stroke_horizontal_rule
@@ -53,7 +54,7 @@ module Exports
     end
 
     def render_portfolio_section(pdf)
-      pdf.font_size(16) { pdf.text "Skill Portfolio", style: :bold }
+      pdf.font_size(16) { pdf_text(pdf, "Skill Portfolio", style: :bold) }
       pdf.move_down 8
 
       skills = @portfolio.portfolio_skills.includes(:assessor_override)
@@ -61,14 +62,14 @@ module Exports
       discovered = skills.select(&:is_discovered)
 
       if configured.any?
-        pdf.font_size(13) { pdf.text "Assessed Skills", style: :bold }
+        pdf.font_size(13) { pdf_text(pdf, "Assessed Skills", style: :bold) }
         pdf.move_down 6
         configured.each { |skill| render_skill_card(pdf, skill) }
       end
 
       if discovered.any?
         pdf.move_down 6
-        pdf.font_size(13) { pdf.text "Discovered Skills", style: :bold }
+        pdf.font_size(13) { pdf_text(pdf, "Discovered Skills", style: :bold) }
         pdf.move_down 6
         discovered.each { |skill| render_skill_card(pdf, skill) }
       end
@@ -79,33 +80,33 @@ module Exports
       effective_level = override ? override.override_level : skill.ai_level
 
       pdf.font_size(11) do
-        pdf.text "#{skill.skill_label}", style: :bold
+        pdf_text(pdf, skill.skill_label, style: :bold)
 
         level_text = "Level: #{LEVEL_LABELS[effective_level]}"
-        level_text += " (AI: #{LEVEL_LABELS[skill.ai_level]} → Override: #{LEVEL_LABELS[override.override_level]})" if override
+        level_text += " (AI: #{LEVEL_LABELS[skill.ai_level]} -> Override: #{LEVEL_LABELS[override.override_level]})" if override
         level_text += "  |  Confidence: #{CONFIDENCE_LABELS[skill.ai_confidence] || skill.ai_confidence}"
-        pdf.text level_text
+        pdf_text(pdf, level_text)
       end
 
       pdf.move_down 4
 
       if skill.competency_summary.present?
-        pdf.font_size(10) { pdf.text skill.competency_summary }
+        pdf.font_size(10) { pdf_text(pdf, skill.competency_summary) }
       end
 
       if skill.evidence.any?
         pdf.move_down 4
         pdf.font_size(10) do
-          pdf.text "Evidence:", style: :bold
-          skill.evidence.each { |quote| pdf.text "  • #{quote}" }
+          pdf_text(pdf, "Evidence:", style: :bold)
+          skill.evidence.each { |quote| pdf_text(pdf, "  * #{quote}") }
         end
       end
 
       if override&.assessor_notes.present?
         pdf.move_down 4
         pdf.font_size(10) do
-          pdf.text "Assessor Note:", style: :bold
-          pdf.text "  #{override.assessor_notes}"
+          pdf_text(pdf, "Assessor Note:", style: :bold)
+          pdf_text(pdf, "  #{override.assessor_notes}")
         end
       end
 
@@ -116,7 +117,7 @@ module Exports
     def render_fit_gap_section(pdf)
       pdf.start_new_page
 
-      pdf.font_size(16) { pdf.text "Fit/Gap Analysis — #{@vacancy.role_title}", style: :bold }
+      pdf.font_size(16) { pdf_text(pdf, "Fit/Gap Analysis - #{@vacancy.role_title}", style: :bold) }
       pdf.move_down 8
 
       comparisons = @fit_gap.skill_comparisons
@@ -124,11 +125,11 @@ module Exports
       table_data = [['Skill', 'Required', 'Candidate', 'Result', 'Delta']]
       comparisons.each do |c|
         table_data << [
-          c['skill_label'],
-          c['expected_level'] ? "L#{c['expected_level']}" : '—',
-          c['candidate_level'] ? "L#{c['candidate_level']}" : '—',
-          RESULT_LABELS[c['result']] || c['result'],
-          c['delta'] ? (c['delta'] > 0 ? "+#{c['delta']}" : c['delta'].to_s) : '—'
+          pdf_value(c['skill_label']),
+          c['expected_level'] ? "L#{c['expected_level']}" : '-',
+          c['candidate_level'] ? "L#{c['candidate_level']}" : '-',
+          pdf_value(RESULT_LABELS[c['result']] || c['result']),
+          c['delta'] ? (c['delta'] > 0 ? "+#{c['delta']}" : c['delta'].to_s) : '-'
         ]
       end
 
@@ -141,17 +142,54 @@ module Exports
 
       if @fit_gap.culture_narrative.present?
         pdf.move_down 12
-        pdf.font_size(12) { pdf.text "Culture & Competency Fit", style: :bold }
+        pdf.font_size(12) { pdf_text(pdf, "Culture & Competency Fit", style: :bold) }
         pdf.move_down 4
-        pdf.font_size(10) { pdf.text @fit_gap.culture_narrative }
+        pdf.font_size(10) { pdf_text(pdf, @fit_gap.culture_narrative) }
       end
 
       if @fit_gap.overall_narrative.present?
         pdf.move_down 8
-        pdf.font_size(12) { pdf.text "Overall Assessment", style: :bold }
+        pdf.font_size(12) { pdf_text(pdf, "Overall Assessment", style: :bold) }
         pdf.move_down 4
-        pdf.font_size(10) { pdf.text @fit_gap.overall_narrative }
+        pdf.font_size(10) { pdf_text(pdf, @fit_gap.overall_narrative) }
       end
+    end
+
+    def configure_font(pdf)
+      regular = find_font('DejaVuSans.ttf')
+      bold = find_font('DejaVuSans-Bold.ttf')
+      return false unless regular && bold
+
+      pdf.font_families.update(
+        'DejaVu Sans' => { normal: regular, bold: bold }
+      )
+      pdf.font('DejaVu Sans')
+      true
+    end
+
+    def find_font(filename)
+      font_dirs = [
+        ENV['PDF_FONT_DIR'],
+        Rails.root.join('vendor', 'fonts').to_s,
+        '/usr/share/fonts/truetype/dejavu'
+      ].compact
+
+      font_dirs.map { |dir| File.join(dir, filename) }.find { |path| File.file?(path) }
+    end
+
+    def pdf_text(pdf, value, **options)
+      pdf.text(pdf_value(value), **options)
+    end
+
+    def pdf_value(value)
+      text = value.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+      return text if @unicode_font_available
+
+      text
+        .tr('—–→←', '--><-')
+        .gsub('•', '*')
+        .unicode_normalize(:nfkd)
+        .encode(Encoding::US_ASCII, invalid: :replace, undef: :replace, replace: '?')
     end
 
     def render_footer(pdf)
