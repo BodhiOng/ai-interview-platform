@@ -8,7 +8,7 @@ module FitGap
       @portfolio = portfolio
       @vacancy   = vacancy
       @gemini_client = gemini_client || Gemini::HttpClient.new(
-        model:   ENV.fetch('GEMINI_FLASH_MODEL', 'gemini-2.0-flash-001'),
+        model:   ENV.fetch('GEMINI_FLASH_MODELS', ENV.fetch('GEMINI_FLASH_MODEL', 'gemini-2.0-flash-001')),
         timeout: 30
       )
     end
@@ -18,12 +18,15 @@ module FitGap
       skill_comparisons = build_skill_comparisons
       narratives        = generate_narratives(skill_comparisons)
 
-      report = FitGapReport.find_or_initialize_by(
+      version = FitGapReport.where(
         portfolio_id: @portfolio.id,
-        vacancy_id:   @vacancy.id
-      )
+        vacancy_id: @vacancy.id
+      ).maximum(:version).to_i + 1
 
-      report.update!(
+      report = FitGapReport.create!(
+        portfolio_id:     @portfolio.id,
+        vacancy_id:       @vacancy.id,
+        version:          version,
         skill_comparisons: skill_comparisons,
         culture_narrative: narratives[:culture],
         overall_narrative: narratives[:overall],
