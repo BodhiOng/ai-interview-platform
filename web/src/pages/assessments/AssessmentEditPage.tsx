@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
@@ -36,6 +36,7 @@ export default function AssessmentEditPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const removedSkillIds = useRef<Set<number>>(new Set());
 
   const form = useForm<AssessmentFormValues>({
     defaultValues: { name: "", time_limit_min: 45, skills: [] },
@@ -49,6 +50,7 @@ export default function AssessmentEditPage() {
       .get(Number(id))
       .then((res) => {
         const a = res.data.assessment;
+        removedSkillIds.current.clear();
         reset({ name: a.name, time_limit_min: a.time_limit_min, skills: a.skills });
       })
       .catch(() => {})
@@ -69,6 +71,14 @@ export default function AssessmentEditPage() {
     }
   };
 
+  const removeSkill = (index: number) => {
+    const skill = form.getValues(`skills.${index}`);
+    if (typeof skill?.id === "number") {
+      removedSkillIds.current.add(skill.id);
+    }
+    remove(index);
+  };
+
   const onSubmit = async (data: AssessmentFormValues) => {
     if (data.skills.length === 0) { setError("Add at least one skill."); return; }
     setError(null);
@@ -77,7 +87,13 @@ export default function AssessmentEditPage() {
       await assessmentsApi.update(Number(id), {
         name: data.name,
         time_limit_min: data.time_limit_min,
-        assessment_skills_attributes: data.skills.map((s, i) => ({ ...s, display_order: i })),
+        assessment_skills_attributes: [
+          ...data.skills.map((s, i) => ({ ...s, display_order: i })),
+          ...Array.from(removedSkillIds.current, (skillId) => ({
+            id: skillId,
+            _destroy: true,
+          })),
+        ],
       });
       navigate(`/assessments/${id}/invite`);
     } catch (e: any) {
@@ -143,7 +159,7 @@ export default function AssessmentEditPage() {
               <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
                   {fields.map((field, index) => (
-                    <SkillCard key={field.id} id={field.id} index={index} form={form} onRemove={() => remove(index)} />
+                    <SkillCard key={field.id} id={field.id} index={index} form={form} onRemove={() => removeSkill(index)} />
                   ))}
                 </div>
               </SortableContext>
