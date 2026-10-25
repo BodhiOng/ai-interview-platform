@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import VacancyEditPage from "./VacancyEditPage";
 import { vacanciesApi } from "@/services/vacancies";
 
@@ -28,6 +28,8 @@ function renderPage() {
 }
 
 describe("VacancyEditPage", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedVacanciesApi.get.mockResolvedValue({
@@ -77,5 +79,20 @@ describe("VacancyEditPage", () => {
     expect(roleTitle).toHaveValue("Senior Frontend Engineer");
     expect(screen.queryByText("React")).not.toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeVisible();
+  });
+
+  it("enables saving when a required proficiency changes", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const reactCard = await screen.findByText("React");
+    const card = reactCard.closest("div.border");
+    expect(card).not.toBeNull();
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+
+    await user.click(within(card as HTMLElement).getByRole("button", { name: "React" }));
+    await user.click(within(card as HTMLElement).getByRole("radio", { name: /L4/ }));
+
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
   });
 });

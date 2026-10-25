@@ -55,7 +55,7 @@ Rails.application.routes.draw do
 
       # Vacancies
       resources :vacancies do
-        collection { post :bulk_archive }
+        collection { post :bulk_archive; post :bulk_unarchive }
         member do
           patch :archive
           patch :unarchive

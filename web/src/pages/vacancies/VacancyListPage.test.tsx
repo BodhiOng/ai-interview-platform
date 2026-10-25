@@ -9,6 +9,7 @@ vi.mock("@/services/vacancies", () => ({
   vacanciesApi: {
     list: vi.fn(),
     bulkArchive: vi.fn(),
+    bulkUnarchive: vi.fn(),
     unarchive: vi.fn(),
   },
 }));
@@ -68,5 +69,23 @@ describe("VacancyListPage archive workflow", () => {
     await user.click(screen.getByRole("button", { name: "Unarchive" }));
 
     await waitFor(() => expect(mockedVacanciesApi.unarchive).toHaveBeenCalledWith(7));
+  });
+
+  it("searches and paginates through vacancies", async () => {
+    const user = userEvent.setup();
+    mockedVacanciesApi.list.mockResolvedValue({
+      data: {
+        vacancies: [{ id: 7, role_title: "Frontend Engineer" }],
+        meta: { current_page: 1, total_pages: 2, total_count: 2, per_page: 1, active_count: 2, archived_count: 0 },
+      },
+    } as never);
+
+    renderPage();
+    const search = await screen.findByRole("textbox", { name: "Search vacancies" });
+    await user.type(search, "Frontend");
+
+    await waitFor(() => expect(mockedVacanciesApi.list).toHaveBeenLastCalledWith(1, false, "Frontend"));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(mockedVacanciesApi.list).toHaveBeenLastCalledWith(2, false, "Frontend"));
   });
 });

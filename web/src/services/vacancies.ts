@@ -9,9 +9,9 @@ export interface VacancyPayload {
 }
 
 export const vacanciesApi = {
-  list: (page = 1, archived = false) =>
+  list: (page = 1, archived = false, search = "") =>
     api.get<{ vacancies: Vacancy[]; meta: PaginationMeta }>("/vacancies", {
-      params: { page, archived },
+      params: { page, archived, ...(search.trim() ? { search: search.trim() } : {}) },
     }),
 
   get: (id: number) =>
@@ -27,4 +27,5 @@ export const vacanciesApi = {
   archive: (id: number) => api.patch(`/vacancies/${id}/archive`),
   unarchive: (id: number) => api.patch(`/vacancies/${id}/unarchive`),
   bulkArchive: (ids: number[]) => api.post("/vacancies/bulk_archive", { ids }),
+  bulkUnarchive: (ids: number[]) => api.post("/vacancies/bulk_unarchive", { ids }),
 };

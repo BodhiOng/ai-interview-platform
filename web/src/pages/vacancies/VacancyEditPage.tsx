@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import LevelRadio from "@/components/assessment/LevelRadio";
 import SkillPicker from "@/components/assessment/SkillPicker";
 import { vacanciesApi } from "@/services/vacancies";
-import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, ChevronDown, ChevronRight, Plus, X, Loader2, Save } from "lucide-react";
 import type { VacancySkill } from "@/types";
 
 interface VacancyFormValues {
@@ -27,12 +28,22 @@ export default function VacancyEditPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
   const removedSkillIds = useRef<Set<number>>(new Set());
 
-  const { register, handleSubmit, control, setValue, watch, reset } = useForm<VacancyFormValues>({
+  const form = useForm<VacancyFormValues>({
     defaultValues: { role_title: "", culture_dimensions: "", competency_expectations: "", skills: [] },
   });
+  const { register, handleSubmit, control, setValue, watch, reset, formState: { errors, isDirty } } = form;
   const { fields, append, remove } = useFieldArray({ control, name: "skills" });
+
+  const toggleSkill = (skillId: string) => {
+    setExpandedSkills((current) => {
+      const next = new Set(current);
+      next.has(skillId) ? next.delete(skillId) : next.add(skillId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     vacanciesApi.get(Number(id)).then((res) => {
@@ -41,6 +52,16 @@ export default function VacancyEditPage() {
       reset({ role_title: v.role_title, culture_dimensions: v.culture_dimensions, competency_expectations: v.competency_expectations, skills: v.skills });
     }).catch(() => {}).finally(() => setLoading(false));
   }, [id, reset]);
+
+  useEffect(() => {
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [isDirty]);
 
   const removeSkill = (index: number) => {
     const skill = watch(`skills.${index}`);
@@ -86,18 +107,23 @@ export default function VacancyEditPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <div className="space-y-1.5">
           <Label>Role title <span className="text-destructive">*</span></Label>
-          <Input {...register("role_title", { required: true })} />
+          <Input id="role_title" aria-invalid={!!errors.role_title} {...register("role_title", { required: true })} />
+          {errors.role_title && <p className="text-xs text-destructive">Role title is required.</p>}
         </div>
         <Separator />
         <div className="space-y-3">
           <Label>Expected skills</Label>
+          <p className="text-sm text-muted-foreground">Set the minimum proficiency required for this role. These levels are used by Fit/Gap analysis.</p>
           {fields.map((field, index) => (
-            <div key={field.id} className="border rounded-lg p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{watch(`skills.${index}.skill_label`)}</span>
-                <button type="button" onClick={() => removeSkill(index)} className="text-muted-foreground hover:text-destructive" aria-label="Remove skill"><X className="h-4 w-4" /></button>
+            <div key={field.id} className="border rounded-lg">
+              <div className="flex cursor-pointer items-center gap-2 p-3 hover:bg-muted/30" role="button" tabIndex={0} onClick={() => toggleSkill(field.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleSkill(field.id); } }} aria-expanded={expandedSkills.has(field.id)}>
+                <span className="rounded p-1 text-muted-foreground" aria-hidden="true">
+                  {expandedSkills.has(field.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{watch(`skills.${index}.skill_label`)}</span>
+                <button type="button" onClick={(event) => { event.stopPropagation(); removeSkill(index); }} className="text-muted-foreground hover:text-destructive" aria-label="Remove skill"><X className="h-4 w-4" /></button>
               </div>
-              <LevelRadio value={watch(`skills.${index}.expected_level`) ?? 3} onChange={(v) => setValue(`skills.${index}.expected_level`, v)} />
+              {expandedSkills.has(field.id) && <div className="border-t px-3 pb-3 pt-3"><div className="space-y-1"><span className="text-xs text-muted-foreground">Required proficiency</span><LevelRadio value={watch(`skills.${index}.expected_level`) ?? 3} onChange={(v) => setValue(`skills.${index}.expected_level`, v, { shouldDirty: true, shouldValidate: true })} /></div></div>}
             </div>
           ))}
           <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
@@ -105,19 +131,9 @@ export default function VacancyEditPage() {
           </Button>
         </div>
         <Separator />
-        <div className="space-y-1.5">
-          <Label>Company culture</Label>
-          <Textarea rows={3} {...register("culture_dimensions")} />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Competency expectations</Label>
-          <Textarea rows={3} {...register("competency_expectations")} />
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => navigate("/vacancies")}>Cancel</Button>
-          <Button type="submit" disabled={submitting}>{submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Save Changes</Button>
-        </div>
+        <Card><CardHeader><CardTitle>Role context</CardTitle><CardDescription>These notes help generate the culture and competency narrative in Fit/Gap analysis.</CardDescription></CardHeader><CardContent className="space-y-5"><div className="space-y-1.5"><Label htmlFor="culture_dimensions">Company culture</Label><Textarea id="culture_dimensions" rows={4} placeholder="Ownership-driven, async-first, direct feedback culture..." {...register("culture_dimensions")} /></div><div className="space-y-1.5"><Label htmlFor="competency_expectations">Competency expectations</Label><Textarea id="competency_expectations" rows={4} placeholder="Strong communicator who can align cross-functional teams..." {...register("competency_expectations")} /></div></CardContent></Card>
+        {error && <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</div>}
+        <div className="sticky bottom-4 z-10 flex flex-col-reverse gap-3 rounded-lg border bg-background/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted-foreground" aria-live="polite">{isDirty ? "Unsaved changes" : "All changes saved"}</p><div className="flex flex-col-reverse gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => { if (!isDirty || window.confirm("Discard your unsaved changes?")) navigate("/vacancies"); }}>Cancel</Button><Button type="submit" disabled={submitting || !isDirty}>{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save changes</Button></div></div>
       </form>
 
       <SkillPicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={(s) => append({ skill_id: s.skill_id, skill_label: s.skill_label, expected_level: 3 })} />

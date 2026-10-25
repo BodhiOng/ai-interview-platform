@@ -41,10 +41,11 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
       )}
     >
       {/* Card header */}
-      <div className="flex items-center gap-2 px-3 py-2.5">
+      <div className="flex cursor-pointer items-center gap-2 px-3 py-2.5 hover:bg-muted/30" role="button" tabIndex={0} aria-expanded={!collapsed} aria-label={`${collapsed ? "Expand" : "Collapse"} ${skillLabel}`} onClick={() => setCollapsed((current) => !current)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setCollapsed((current) => !current); } }}>
         <button
           type="button"
           className="cursor-grab text-muted-foreground hover:text-foreground touch-none"
+          onClick={(event) => event.stopPropagation()}
           {...attributes}
           {...listeners}
         >
@@ -62,7 +63,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
 
         <button
           type="button"
-          onClick={() => setCollapsed((current) => !current)}
+          onClick={(event) => { event.stopPropagation(); setCollapsed((current) => !current); }}
           className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`${collapsed ? "Expand" : "Collapse"} ${skillLabel}`}
           aria-expanded={!collapsed}
@@ -72,7 +73,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
 
         <button
           type="button"
-          onClick={onRemove}
+          onClick={(event) => { event.stopPropagation(); onRemove(); }}
           className="text-muted-foreground hover:text-destructive transition-colors"
           aria-label="Remove skill"
         >

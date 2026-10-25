@@ -123,7 +123,7 @@ describe("AssessmentEditPage", () => {
 
     const reactCard = (await screen.findByText("React")).closest("div.border");
     expect(reactCard).not.toBeNull();
-    await user.click(within(reactCard as HTMLElement).getByRole("button", { name: /expand react/i }));
+    await user.click(await within(reactCard as HTMLElement).findByText("React"));
 
     expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
     await user.click(within(reactCard as HTMLElement).getByRole("radio", { name: "L2" }));

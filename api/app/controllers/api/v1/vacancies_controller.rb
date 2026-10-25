@@ -9,11 +9,14 @@ module Api
 
       # GET /api/v1/vacancies
       def index
-        vacancies = paginate(vacancy_scope.order(created_at: :desc))
+        vacancies = paginate(filtered_vacancy_scope.order(created_at: :desc))
 
         json_response(
           vacancies: vacancies.map(&method(:vacancy_json)),
-          meta: pagination_meta(vacancies)
+          meta: pagination_meta(vacancies).merge(
+            active_count: Vacancy.active.count,
+            archived_count: Vacancy.archived.count
+          )
         )
       end
 
@@ -71,10 +74,26 @@ module Api
         json_response(message: "Vacancies archived", archived_count: archived)
       end
 
+      def bulk_unarchive
+        ids = Array(params[:ids]).filter_map { |id| Integer(id, exception: false) }
+        restored = Vacancy.archived.where(id: ids).update_all(archived_at: nil, updated_at: Time.current)
+        json_response(message: "Vacancies restored", restored_count: restored)
+      end
+
       private
 
       def vacancy_scope
         params[:archived].to_s == "true" ? Vacancy.archived : Vacancy.active
+      end
+
+      def filtered_vacancy_scope
+        search = params[:search].to_s.strip
+        return vacancy_scope if search.blank?
+
+        vacancy_scope.where(
+          "role_title ILIKE ?",
+          "%#{ActiveRecord::Base.sanitize_sql_like(search)}%"
+        )
       end
 
       def set_vacancy
