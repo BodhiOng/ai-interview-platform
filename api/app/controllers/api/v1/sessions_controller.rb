@@ -110,9 +110,13 @@ module Api
       # GET /api/v1/sessions/:id/transcript
       def transcript
         from_turn = params[:from_turn].to_i
-        turns     = @session.transcript_turns
-                             .ordered
-                             .then { from_turn > 0 ? _1.where("turn_number >= ?", from_turn) : _1 }
+        limit     = params[:limit].to_i
+        query     = params[:query].to_s.strip
+        scope     = @session.transcript_turns.ordered
+        scope     = scope.where("turn_number >= ?", from_turn) if from_turn > 0
+        scope     = scope.where("text ILIKE ?", "%#{ActiveRecord::Base.sanitize_sql_like(query)}%") if query.present?
+        total     = scope.count
+        turns     = limit > 0 ? scope.limit([limit, 100].min) : scope
 
         json_response(
           turns: turns.map do |t|
@@ -126,7 +130,7 @@ module Api
               created_at:     t.created_at
             }
           end,
-          total: turns.count
+          total: total
         )
       end
 

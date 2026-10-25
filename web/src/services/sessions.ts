@@ -15,9 +15,13 @@ export const sessionsApi = {
   getCoverage: (id: number) =>
     api.get<CoverageMap>(`/sessions/${id}/coverage`),
 
-  getTranscript: (id: number, fromTurn?: number) =>
+  getTranscript: (id: number, fromTurn?: number, limit?: number, query?: string) =>
     api.get<{ turns: TranscriptTurn[]; total: number }>(`/sessions/${id}/transcript`, {
-      params: fromTurn ? { from_turn: fromTurn } : undefined,
+      params: {
+        ...(fromTurn ? { from_turn: fromTurn } : {}),
+        ...(limit ? { limit } : {}),
+        ...(query ? { query } : {}),
+      },
     }),
 
   getPortfolio: (id: number) =>
