@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { assessmentsApi } from "@/services/assessments";
 import { LEVEL_LABELS } from "@/utils/constants";
-import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, UserRound, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, UserRound, Trash2, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Assessment, Session } from "@/types";
 
 function SessionRow({
@@ -35,12 +35,13 @@ function SessionRow({
 }) {
   const navigate = useNavigate();
   const isLive = session.status === "active";
-  const isEnded = session.status === "ended";
+  const isFailed = session.status === "failed" || (session.status === "ended" && session.end_reason === "error");
+  const isEnded = session.status === "ended" && !isFailed;
   const isPending = session.status === "pending";
   const displayName = session.candidate_name || `Candidate ${index}`;
 
   return (
-    <div className="flex items-center justify-between py-3 px-4">
+    <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center gap-3">
         <div className="flex items-center justify-center w-7 h-7 rounded-full bg-muted text-xs font-medium text-muted-foreground">
           {index}
@@ -57,25 +58,25 @@ function SessionRow({
 
       <div className="flex items-center gap-3">
         {isPending && (
-          <span className="flex items-center gap-1 text-xs text-amber-600">
+          <span role="status" className="flex items-center gap-1 text-xs text-amber-600">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             Awaiting candidate
           </span>
         )}
         {isLive && (
-          <span className="flex items-center gap-1 text-xs text-primary">
+          <span role="status" className="flex items-center gap-1 text-xs text-primary">
             <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
             Live
           </span>
         )}
-        {isEnded && session.end_reason === "error" && (
-          <span className="flex items-center gap-1 text-xs text-destructive">
+        {isFailed && (
+          <span role="status" className="flex items-center gap-1 text-xs text-destructive">
             <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
             Failed
           </span>
         )}
         {isEnded && session.end_reason !== "error" && (
-          <span className="flex items-center gap-1 text-xs text-green-600">
+          <span role="status" className="flex items-center gap-1 text-xs text-green-600">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
             Completed
           </span>
@@ -112,6 +113,7 @@ function SessionRow({
               variant="outline"
               size="sm"
               className="h-7 px-2 text-xs"
+              aria-label={`Monitor ${displayName}`}
               onClick={() => navigate(`/assessments/${assessmentId}/sessions/${session.id}/monitor`)}
             >
               <Eye className="h-3 w-3 mr-1" /> Monitor
@@ -122,6 +124,7 @@ function SessionRow({
               variant="outline"
               size="sm"
               className="h-7 px-2 text-xs"
+              aria-label={`View results for ${displayName}`}
               onClick={() => navigate(`/assessments/${assessmentId}/sessions/${session.id}/portfolio`)}
             >
               Results
@@ -140,11 +143,13 @@ export default function AssessmentInvitePage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [creatingSession, setCreatingSession] = useState(false);
-  const [newSession, setNewSession] = useState<Session | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
-  const [newSessionCopied, setNewSessionCopied] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [candidateNameInput, setCandidateNameInput] = useState("");
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "active" | "pending" | "failed">("all");
+  const [candidatePage, setCandidatePage] = useState(1);
+  const CANDIDATES_PER_PAGE = 8;
 
   const loadSessions = useCallback(async () => {
     const res = await assessmentsApi.getSessions(Number(id));
@@ -185,11 +190,9 @@ export default function AssessmentInvitePage() {
     }
     setCreatingSession(true);
     setShowInviteDialog(false);
-    setNewSession(null);
     try {
       const res = await assessmentsApi.createSession(Number(id), candidateNameInput.trim() || undefined);
       const created = res.data.session;
-      setNewSession(created);
       setSessions((prev) => [created, ...prev]);
     } finally {
       setCreatingSession(false);
@@ -202,24 +205,53 @@ export default function AssessmentInvitePage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const copyNewSessionLink = () => {
-    if (!newSession?.invite_url) return;
-    navigator.clipboard.writeText(newSession.invite_url);
-    setNewSessionCopied(true);
-    setTimeout(() => setNewSessionCopied(false), 2000);
-  };
-
   const deleteSession = async (sessionId: number) => {
     if (!window.confirm("Delete this pending candidate invite? This cannot be undone.")) return;
 
     try {
       await assessmentsApi.deleteSession(sessionId);
       setSessions((prev) => prev.filter((session) => session.id !== sessionId));
-      setNewSession((current) => (current?.id === sessionId ? null : current));
     } catch {
       // The API interceptor handles authorization failures; keep the invite visible
       // for retry when deletion fails for another reason.
     }
+  };
+
+  const filteredSessions = useMemo(() => {
+    const normalizedSearch = candidateSearch.trim().toLowerCase();
+    return sessions.filter((session) => {
+      const matchesSearch = !normalizedSearch || (session.candidate_name || "").toLowerCase().includes(normalizedSearch);
+      const completed = session.status === "ended" && session.end_reason !== "error";
+      const failed = session.status === "failed" || (session.status === "ended" && session.end_reason === "error");
+      const matchesStatus = statusFilter === "all"
+        || (statusFilter === "completed" && completed)
+        || (statusFilter === "failed" && failed)
+        || (statusFilter === session.status);
+      return matchesSearch && matchesStatus;
+    });
+  }, [candidateSearch, sessions, statusFilter]);
+
+  const candidateTotalPages = Math.max(1, Math.ceil(filteredSessions.length / CANDIDATES_PER_PAGE));
+  const visibleSessions = filteredSessions.slice(
+    (candidatePage - 1) * CANDIDATES_PER_PAGE,
+    candidatePage * CANDIDATES_PER_PAGE
+  );
+  const statusCounts = {
+    all: sessions.length,
+    pending: sessions.filter((session) => session.status === "pending").length,
+    active: sessions.filter((session) => session.status === "active").length,
+    completed: sessions.filter((session) => session.status === "ended" && session.end_reason !== "error").length,
+    failed: sessions.filter((session) => session.status === "failed" || (session.status === "ended" && session.end_reason === "error")).length,
+  };
+
+  const updateCandidateSearch = (value: string) => {
+    setCandidateSearch(value);
+    setCandidatePage(1);
+  };
+
+  const updateStatusFilter = (value: "all" | "completed" | "active" | "pending" | "failed") => {
+    setStatusFilter(value);
+    setCandidatePage(1);
   };
 
   if (loading) {
@@ -233,11 +265,11 @@ export default function AssessmentInvitePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-2">
-          <Link to="/assessments" className="text-muted-foreground hover:text-foreground">
+          <Link to="/assessments" aria-label="Back to assessments" className="mt-1 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
@@ -296,44 +328,27 @@ export default function AssessmentInvitePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Newly created session invite link */}
-      {newSession && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="pt-4 space-y-2">
-            <p className="text-sm font-medium">
-              {newSession.candidate_name
-                ? <>Link for <span className="font-semibold">{newSession.candidate_name}</span> ready — share with your candidate:</>
-                : <>New invite link ready — share with your candidate:</>}
-            </p>
-            <div className="flex items-center gap-2 border rounded-md px-3 py-2 bg-white">
-              <span className="flex-1 text-sm font-mono truncate text-muted-foreground">
-                {newSession.invite_url}
-              </span>
-            </div>
-            <Button variant="outline" size="sm" onClick={copyNewSessionLink} className="w-full">
-              {newSessionCopied ? (
-                <><Check className="h-3.5 w-3.5 mr-1.5" /> Copied!</>
-              ) : (
-                <><Copy className="h-3.5 w-3.5 mr-1.5" /> Copy link</>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
       <Separator />
 
       {/* Sessions list */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] items-start">
-        <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">
-            Candidates
-            {sessions.length > 0 && (
-              <span className="ml-1.5 text-muted-foreground font-normal">({sessions.length})</span>
-            )}
-          </h2>
+        <div className="space-y-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold">Candidates <span className="font-normal text-muted-foreground">({sessions.length})</span></h2>
+            <p className="mt-1 text-xs text-muted-foreground">Track invite status and candidate results.</p>
+          </div>
         </div>
+
+        {sessions.length > 0 && <div className="space-y-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input aria-label="Search candidates" placeholder="Search candidates..." value={candidateSearch} onChange={(event) => updateCandidateSearch(event.target.value)} className="pl-9" />
+          </div>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Candidate status filter">
+            {(["all", "completed", "active", "pending", "failed"] as const).map((status) => <Button key={status} size="sm" variant={statusFilter === status ? "secondary" : "ghost"} aria-pressed={statusFilter === status} onClick={() => updateStatusFilter(status)}>{status === "all" ? "All" : status === "completed" ? "Completed" : status === "active" ? "Live" : status === "pending" ? "Pending" : "Failed"} ({statusCounts[status]})</Button>)}
+          </div>
+        </div>}
 
         {sessions.length === 0 ? (
           <div className="border rounded-lg p-10 text-center space-y-3">
@@ -345,14 +360,18 @@ export default function AssessmentInvitePage() {
               </p>
             </div>
           </div>
+        ) : filteredSessions.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+            No candidates match the current search or filter.
+          </div>
         ) : (
           <Card>
             <CardContent className="p-0 divide-y">
-              {sessions.map((session, i) => (
+              {visibleSessions.map((session, i) => (
                 <SessionRow
                   key={session.id}
                   session={session}
-                  index={sessions.length - i}
+                  index={filteredSessions.length - ((candidatePage - 1) * CANDIDATES_PER_PAGE + i)}
                   assessmentId={id!}
                   onCopy={(sid) => {
                     const s = sessions.find((x) => x.id === sid);
@@ -365,6 +384,7 @@ export default function AssessmentInvitePage() {
             </CardContent>
           </Card>
         )}
+        {sessions.length > 0 && filteredSessions.length > 0 && candidateTotalPages > 1 && <nav className="flex items-center justify-between border-t pt-3" aria-label="Candidate pagination"><p className="text-xs text-muted-foreground">Page {candidatePage} of {candidateTotalPages}</p><div className="flex gap-2"><Button variant="outline" size="sm" disabled={candidatePage <= 1} onClick={() => setCandidatePage((current) => current - 1)}><ChevronLeft className="h-4 w-4" />Previous</Button><Button variant="outline" size="sm" disabled={candidatePage >= candidateTotalPages} onClick={() => setCandidatePage((current) => current + 1)}>Next<ChevronRight className="h-4 w-4" /></Button></div></nav>}
       </div>
 
       {/* Assessment skills detail */}
