@@ -39,6 +39,12 @@ export default function InterviewPage() {
   const connectionLostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [micMuted, setMicMuted] = useState(false);
   const micMutedRef = useRef(false);
+  const transcriptScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const transcriptPanel = transcriptScrollRef.current;
+    if (transcriptPanel) transcriptPanel.scrollTop = transcriptPanel.scrollHeight;
+  }, [transcript]);
 
   // Fetch candidate info
   useEffect(() => {
@@ -281,10 +287,9 @@ export default function InterviewPage() {
   const candidateSpeaking = speaker === "candidate";
 
   return (
-    <div className="max-w-xl mx-auto px-4 flex flex-col h-full">
+    <div className="mx-auto flex h-full max-w-5xl flex-col px-4">
       {/* Top bar */}
-      <div className="flex items-center justify-between py-3 border-b sticky top-12 bg-background/95 backdrop-blur z-10">
-        <span className="text-sm font-medium">AI Interview</span>
+      <div className="flex items-center justify-end py-3 border-b sticky top-12 bg-background/95 backdrop-blur z-10">
         {candidateInfo && (
           <InterviewTimer
             totalSeconds={candidateInfo.time_limit_min * 60}
@@ -317,40 +322,51 @@ export default function InterviewPage() {
         </div>
       )}
 
-      {/* Voice indicator */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-6 py-8">
-        {interviewState === "connecting" ? (
-          <div className="text-sm text-muted-foreground animate-pulse">Connecting...</div>
-        ) : interviewState === "draining_audio" ? (
-          <div className="flex flex-col items-center gap-2 text-center">
-            <VoiceBars active={true} label="AI speaking" variant="ai" />
-            <p className="text-xs text-muted-foreground">Wrapping up...</p>
+      {/* Voice status and conversation */}
+      <div className="grid flex-1 items-center gap-8 lg:grid-cols-[minmax(15rem,0.8fr)_minmax(0,1.2fr)]">
+        <div className="flex flex-col items-center justify-center gap-6 py-8">
+          {interviewState === "connecting" ? (
+            <div className="text-sm text-muted-foreground animate-pulse">Connecting...</div>
+          ) : interviewState === "draining_audio" ? (
+            <div className="flex flex-col items-center gap-2 text-center">
+              <VoiceBars active={true} label="AI speaking" variant="ai" />
+              <p className="text-xs text-muted-foreground">Wrapping up...</p>
+            </div>
+          ) : (
+            <>
+              <VoiceBars
+                active={aiSpeaking}
+                label={aiSpeaking ? "AI speaking" : "Listening..."}
+                variant="ai"
+              />
+
+              {candidateSpeaking && (
+                <VoiceBars
+                  active={true}
+                  label="You're speaking"
+                  variant="candidate"
+                />
+              )}
+            </>
+          )}
+        </div>
+
+        {transcript.length > 0 ? (
+          <div
+            ref={transcriptScrollRef}
+            aria-label="Interview conversation"
+            className="min-h-32 max-h-[min(55vh,34rem)] w-full overflow-y-auto overscroll-contain rounded-lg border bg-card/30 p-3 shadow-sm"
+          >
+            <div className="space-y-2">
+              {transcript.map((turn, i) => (
+                <TranscriptBubble key={i} speaker={turn.speaker} text={turn.text} />
+              ))}
+            </div>
           </div>
         ) : (
-          <>
-            <VoiceBars
-              active={aiSpeaking}
-              label={aiSpeaking ? "AI speaking" : "Listening..."}
-              variant="ai"
-            />
-
-            {candidateSpeaking && (
-              <VoiceBars
-                active={true}
-                label="You're speaking"
-                variant="candidate"
-              />
-            )}
-
-            {/* Transcript */}
-            {transcript.length > 0 && (
-              <div className="w-full space-y-2 overflow-y-auto max-h-[60vh]">
-                {transcript.map((turn, i) => (
-                  <TranscriptBubble key={i} speaker={turn.speaker} text={turn.text} />
-                ))}
-              </div>
-            )}
-          </>
+          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Conversation will appear here.
+          </div>
         )}
       </div>
 
