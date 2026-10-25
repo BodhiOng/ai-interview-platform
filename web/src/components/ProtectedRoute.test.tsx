@@ -11,7 +11,7 @@ function AuthHarness({ token }: { token: string | null }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setAuth({ token });
+    setAuth({ token, email: token ? "admin@example.com" : null });
     setReady(true);
   }, [setAuth, token]);
 
