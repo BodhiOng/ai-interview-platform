@@ -10,12 +10,15 @@ module Api
       # GET /api/v1/assessments
       def index
         assessments = paginate(
-          assessment_scope.includes(:sessions).order(created_at: :desc)
+          filtered_assessment_scope.includes(:sessions).order(created_at: :desc)
         )
 
         json_response(
           assessments: assessments.map(&method(:assessment_json)),
-          meta: pagination_meta(assessments)
+          meta: pagination_meta(assessments).merge(
+            active_count: Assessment.active.count,
+            archived_count: Assessment.archived.count
+          )
         )
       end
 
@@ -84,10 +87,27 @@ module Api
         json_response(message: "Assessments archived", archived_count: archived)
       end
 
+      def bulk_unarchive
+        ids = Array(params[:ids]).filter_map { |id| Integer(id, exception: false) }
+        restored = Assessment.archived.where(id: ids).update_all(archived_at: nil, updated_at: Time.current)
+
+        json_response(message: "Assessments restored", restored_count: restored)
+      end
+
       private
 
       def assessment_scope
         params[:archived].to_s == "true" ? Assessment.archived : Assessment.active
+      end
+
+      def filtered_assessment_scope
+        search = params[:search].to_s.strip
+        return assessment_scope if search.blank?
+
+        assessment_scope.where(
+          "name ILIKE ?",
+          "%#{ActiveRecord::Base.sanitize_sql_like(search)}%"
+        )
       end
 
       def mark_unfinished_sessions_failed(assessment)

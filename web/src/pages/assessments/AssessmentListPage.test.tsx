@@ -9,6 +9,7 @@ vi.mock("@/services/assessments", () => ({
   assessmentsApi: {
     list: vi.fn(),
     bulkArchive: vi.fn(),
+    bulkUnarchive: vi.fn(),
     unarchive: vi.fn(),
   },
 }));
@@ -35,6 +36,7 @@ describe("AssessmentListPage archive workflow", () => {
       },
     } as never);
     mockedAssessmentsApi.bulkArchive.mockResolvedValue({ data: {} } as never);
+    mockedAssessmentsApi.bulkUnarchive.mockResolvedValue({ data: {} } as never);
     mockedAssessmentsApi.unarchive.mockResolvedValue({ data: {} } as never);
   });
 
@@ -70,5 +72,26 @@ describe("AssessmentListPage archive workflow", () => {
     await user.click(screen.getByRole("button", { name: "Unarchive" }));
 
     await waitFor(() => expect(mockedAssessmentsApi.unarchive).toHaveBeenCalledWith(42));
+  });
+
+  it("bulk unarchives selected archived assessments", async () => {
+    const user = userEvent.setup();
+    mockedAssessmentsApi.list.mockResolvedValue({
+      data: {
+        assessments: [
+          { id: 42, name: "Archived Assessment", time_limit_min: 30 },
+          { id: 43, name: "Archived Assessment 2", time_limit_min: 45 },
+        ],
+        meta: { current_page: 1, total_pages: 1, total_count: 2, per_page: 20, active_count: 1, archived_count: 2 },
+      },
+    } as never);
+
+    renderPage();
+    await user.click(await screen.findByRole("button", { name: "Archived" }));
+    await user.click(screen.getByRole("button", { name: "Select" }));
+    await user.click(screen.getByRole("button", { name: "Select all" }));
+    await user.click(screen.getByRole("button", { name: "Unarchive selected" }));
+
+    await waitFor(() => expect(mockedAssessmentsApi.bulkUnarchive).toHaveBeenCalledWith([42, 43]));
   });
 });

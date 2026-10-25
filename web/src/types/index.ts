@@ -190,6 +190,8 @@ export interface PaginationMeta {
   total_pages: number;
   total_count: number;
   per_page: number;
+  active_count?: number;
+  archived_count?: number;
 }
 
 // WebSocket message types

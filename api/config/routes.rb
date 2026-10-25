@@ -18,7 +18,7 @@ Rails.application.routes.draw do
 
       # Assessments
       resources :assessments do
-        collection { post :bulk_archive }
+        collection { post :bulk_archive; post :bulk_unarchive }
         member do
           patch :archive
           patch :unarchive
