@@ -51,6 +51,15 @@ describe("ProtectedRoute", () => {
     expect(screen.queryByText("Protected admin page")).not.toBeInTheDocument();
   });
 
+  it("redirects users when the stored token is empty", async () => {
+    renderProtectedRoute("");
+
+    await waitFor(() => {
+      expect(screen.getByText("Login page")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Protected admin page")).not.toBeInTheDocument();
+  });
+
   it("allows users with a successful login token to access protected pages", async () => {
     renderProtectedRoute("login-token");
 

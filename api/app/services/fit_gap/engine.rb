@@ -79,7 +79,7 @@ module FitGap
       end
 
       @portfolio.portfolio_skills.includes(:assessor_override).map do |skill|
-        override = skill.assessor_override
+        override = skill.assessor_override if skill.assessor_override&.override_level != skill.ai_level
         {
           id:              skill.id,
           skill_id:        skill.skill_id,
@@ -101,8 +101,9 @@ module FitGap
 
       skills.map do |skill|
         skill_id = skill['id'] || skill[:id]
-        override = overrides[skill_id]
         ai_level = skill['ai_level'] || skill[:ai_level]
+        override = overrides[skill_id]
+        override = nil if override && (override['override_level'] || override[:override_level]) == ai_level
         {
           id:              skill_id,
           skill_id:        skill['skill_id'] || skill[:skill_id],

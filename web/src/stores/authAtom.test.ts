@@ -26,6 +26,7 @@ describe("auth token storage", () => {
     localStorage.setItem("auth_token", "auth-token");
     localStorage.setItem("access_token", "access-token");
     localStorage.setItem("refresh_token", "refresh-token");
+    localStorage.setItem("session-token", "session-token");
     localStorage.setItem("unrelated_setting", "keep-me");
 
     clearToken();
@@ -33,6 +34,7 @@ describe("auth token storage", () => {
     expect(localStorage.getItem("auth_token")).toBeNull();
     expect(localStorage.getItem("access_token")).toBeNull();
     expect(localStorage.getItem("refresh_token")).toBeNull();
+    expect(localStorage.getItem("session-token")).toBeNull();
     expect(localStorage.getItem("unrelated_setting")).toBe("keep-me");
   });
 });

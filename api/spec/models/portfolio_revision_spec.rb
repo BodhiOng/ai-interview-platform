@@ -85,4 +85,29 @@ RSpec.describe PortfolioRevision do
 
     expect(described_class.capture!(portfolio)).to eq(:revision)
   end
+
+  it 'starts at version one and captures empty collections for a portfolio without skills' do
+    portfolio = double(
+      'Portfolio',
+      id: 8,
+      generation_status: 'complete',
+      generated_at: nil,
+      generation_error: nil,
+      portfolio_skills: [],
+      assessor_overrides: []
+    )
+
+    allow(PortfolioRevision).to receive(:where).with(portfolio_id: 8).and_return(double(maximum: nil))
+
+    expect(PortfolioRevision).to receive(:create!).with(
+      portfolio: portfolio,
+      version: 1,
+      generation_status: 'complete',
+      generated_at: nil,
+      generation_error: nil,
+      snapshot: { skills: [], overrides: [] }
+    ).and_return(:revision)
+
+    expect(described_class.capture!(portfolio)).to eq(:revision)
+  end
 end
