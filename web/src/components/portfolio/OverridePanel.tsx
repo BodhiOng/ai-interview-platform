@@ -13,7 +13,7 @@ import type { PortfolioSkill, AssessorOverride } from "@/types";
 interface OverridePanelProps {
   skill: PortfolioSkill;
   existingOverride?: AssessorOverride;
-  onSaved: (override: AssessorOverride) => void;
+  onSaved: (override: AssessorOverride | null) => void;
 }
 
 interface OverrideStatusProps {

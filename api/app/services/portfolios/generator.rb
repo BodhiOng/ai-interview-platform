@@ -221,7 +221,7 @@ module Portfolios
     def capture_overrides(portfolio)
       portfolio.portfolio_skills.includes(:assessor_override).each_with_object({}) do |skill, overrides|
         override = skill.assessor_override
-        next unless override
+        next unless override && override.override_level != skill.ai_level
 
         key = skill.skill_id.present? ? "skill:#{skill.skill_id}" : "label:#{skill.skill_label}"
         overrides[key] = {

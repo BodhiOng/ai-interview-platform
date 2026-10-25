@@ -211,7 +211,7 @@ module Api
           generated_at:      portfolio.generated_at,
           generation_error:  portfolio.generation_error,
           skills:            portfolio.portfolio_skills.map(&method(:portfolio_skill_json)),
-          overrides:         portfolio.assessor_overrides.map(&method(:override_json))
+          overrides:         active_overrides_for(portfolio).map(&method(:override_json))
         }
       end
 
@@ -265,6 +265,14 @@ module Api
         }
       end
 
+      def active_overrides_for(portfolio)
+        skills_by_id = portfolio.portfolio_skills.index_by(&:id)
+        portfolio.assessor_overrides.select do |override|
+          skill = skills_by_id[override.portfolio_skill_id]
+          skill && override.override_level != skill.ai_level
+        end
+      end
+
       def fit_gap_json(report)
         {
           id:                report.id,
@@ -284,19 +292,23 @@ module Api
                             snapshot = report.portfolio_revision.snapshot
                             skills = Array(snapshot['skills'] || snapshot[:skills])
                             skill_labels_by_id = skills.index_by { |skill| skill['id'] || skill[:id] }
-                            override_ids = Array(snapshot['overrides'] || snapshot[:overrides]).map do |override|
+                            overrides_by_id = Array(snapshot['overrides'] || snapshot[:overrides]).index_by do |override|
                               override['portfolio_skill_id'] || override[:portfolio_skill_id]
                             end
-                            override_ids.filter_map { |skill_id| skill_labels_by_id[skill_id]&.then { |skill| skill['skill_label'] || skill[:skill_label] } }
+                            overrides_by_id.filter_map do |skill_id, override|
+                              skill = skill_labels_by_id[skill_id]
+                              next unless skill && (override['override_level'] || override[:override_level]).to_i != (skill['ai_level'] || skill[:ai_level]).to_i
+                              skill['skill_label'] || skill[:skill_label]
+                            end
                           else
-                            report.portfolio.portfolio_skills.includes(:assessor_override).filter_map do |skill|
-                              skill.skill_label if skill.assessor_override.present?
+                            active_overrides_for(report.portfolio).filter_map do |override|
+                              report.portfolio.portfolio_skills.find { |skill| skill.id == override.portfolio_skill_id }&.skill_label
                             end
                           end
 
         Array(report.skill_comparisons).map do |comparison|
           comparison.merge(
-            'is_override' => comparison['is_override'] || override_labels.include?(comparison['skill_label'])
+            'is_override' => override_labels.include?(comparison['skill_label'])
           )
         end
       end

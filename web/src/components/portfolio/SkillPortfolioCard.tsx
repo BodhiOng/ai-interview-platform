@@ -9,7 +9,7 @@ import type { PortfolioSkill, AssessorOverride } from "@/types";
 interface SkillPortfolioCardProps {
   skill: PortfolioSkill;
   override?: AssessorOverride;
-  onOverrideSaved: (override: AssessorOverride) => void;
+  onOverrideSaved: (override: AssessorOverride | null) => void;
   readOnly?: boolean;
 }
 
@@ -48,7 +48,7 @@ export default function SkillPortfolioCard({
 
         {/* Low confidence note */}
         {skill.ai_confidence?.toLowerCase() === "low" && (
-          <div className="text-xs text-muted-foreground bg-amber-50 border border-amber-200 rounded px-3 py-2">
+          <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-muted-foreground dark:border-amber-700/70 dark:bg-amber-950/40">
             Only briefly explored. Confidence is low — warrants a dedicated session if this skill matters.
           </div>
         )}

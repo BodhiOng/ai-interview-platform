@@ -43,7 +43,7 @@ export default function PortfolioPage() {
       setGenerating(false);
       // Build overrides map
       const overrideMap: Record<number, AssessorOverride> = {};
-      data.portfolio.overrides.forEach((o: AssessorOverride) => {
+      data.portfolio.overrides.filter((o: AssessorOverride) => o.override_level !== o.ai_level).forEach((o: AssessorOverride) => {
         overrideMap[o.portfolio_skill_id] = o;
       });
       setOverrides(overrideMap);
@@ -70,9 +70,14 @@ export default function PortfolioPage() {
   // Poll while generating
   usePolling(fetchPortfolio, 5000, generating);
 
-  const handleOverrideSaved = (skillId: number, override: AssessorOverride) => {
+  const handleOverrideSaved = (skillId: number, override: AssessorOverride | null) => {
     if (selectedRevision) return;
-    setOverrides((prev) => ({ ...prev, [skillId]: override }));
+    setOverrides((prev) => {
+      if (override && override.override_level !== override.ai_level) return { ...prev, [skillId]: override };
+      const next = { ...prev };
+      delete next[skillId];
+      return next;
+    });
   };
 
   const displayedSkills = selectedRevision?.snapshot.skills ?? portfolio?.skills ?? [];
