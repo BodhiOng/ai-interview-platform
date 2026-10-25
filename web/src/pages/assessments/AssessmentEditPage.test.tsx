@@ -1,7 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AssessmentEditPage from "./AssessmentEditPage";
 import { assessmentsApi } from "@/services/assessments";
 
@@ -48,6 +48,8 @@ function renderPage() {
 }
 
 describe("AssessmentEditPage", () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockedAssessmentsApi.get.mockResolvedValue({
@@ -88,7 +90,7 @@ describe("AssessmentEditPage", () => {
     const nameInput = await screen.findByLabelText(/role title/i);
     await user.clear(nameInput);
     await user.type(nameInput, "Senior Frontend Engineer");
-    const reactCard = screen.getByText("React").closest("div.border");
+    const reactCard = (await screen.findByText("React")).closest("div.border");
     expect(reactCard).not.toBeNull();
     await user.click(within(reactCard as HTMLElement).getByRole("button", { name: /remove skill/i }));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
@@ -113,5 +115,19 @@ describe("AssessmentEditPage", () => {
     expect(nameInput).toHaveValue("Senior Frontend Engineer");
     expect(screen.queryByText("React")).not.toBeInTheDocument();
     expect(screen.getByText("TypeScript")).toBeVisible();
+  });
+
+  it("enables saving when an expected skill level changes", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const reactCard = (await screen.findByText("React")).closest("div.border");
+    expect(reactCard).not.toBeNull();
+    await user.click(within(reactCard as HTMLElement).getByRole("button", { name: /expand react/i }));
+
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+    await user.click(within(reactCard as HTMLElement).getByRole("radio", { name: "L2" }));
+
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
   });
 });
