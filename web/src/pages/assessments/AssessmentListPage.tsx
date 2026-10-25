@@ -103,6 +103,7 @@ export default function AssessmentListPage() {
   const totalPages = meta?.total_pages ?? 1;
   const allSelected = assessments.length > 0 && assessments.every((assessment) => selectedIds.includes(assessment.id));
   const openAssessment = (id: number) => navigate(`/assessments/${id}/invite`);
+  const toggleSelected = (id: number) => setSelectedIds((current) => current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
@@ -141,10 +142,10 @@ export default function AssessmentListPage() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {assessments.map((assessment) => <Card key={assessment.id} role="link" tabIndex={0} aria-label={`Open assessment ${assessment.name}`} className="cursor-pointer transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => openAssessment(assessment.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openAssessment(assessment.id); } }}>
+          {assessments.map((assessment) => <Card key={assessment.id} role={selectionMode ? "button" : "link"} aria-pressed={selectionMode ? selectedIds.includes(assessment.id) : undefined} tabIndex={0} aria-label={selectionMode ? `Toggle selection for ${assessment.name}` : `Open assessment ${assessment.name}`} className="cursor-pointer transition-colors hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => selectionMode ? toggleSelected(assessment.id) : openAssessment(assessment.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); selectionMode ? toggleSelected(assessment.id) : openAssessment(assessment.id); } }}>
             <CardContent className="flex min-h-28 items-center justify-between gap-4 p-4">
               <div className="flex min-w-0 items-start gap-3">
-                {selectionMode && <input type="checkbox" aria-label={`Select ${assessment.name}`} checked={selectedIds.includes(assessment.id)} onChange={() => setSelectedIds((current) => current.includes(assessment.id) ? current.filter((id) => id !== assessment.id) : [...current, assessment.id])} onClick={(event) => event.stopPropagation()} className="mt-1 h-4 w-4 rounded border-input" />}
+                {selectionMode && <input type="checkbox" aria-label={`Select ${assessment.name}`} checked={selectedIds.includes(assessment.id)} onChange={() => toggleSelected(assessment.id)} onClick={(event) => event.stopPropagation()} className="mt-1 h-4 w-4 rounded border-input" />}
                 <div className="min-w-0"><p className="truncate font-medium">{assessment.name}</p><div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Clock className="h-3 w-3" aria-hidden="true" />{assessment.time_limit_min} min</span>{assessment.latest_session && <><span aria-hidden="true">·</span><SessionSummary session={assessment.latest_session} /></>}</div></div>
               </div>
               <div className="flex shrink-0 items-center gap-2">{showArchived && <Button variant="outline" size="sm" disabled={archiving} onClick={(event) => { event.stopPropagation(); unarchiveOne(assessment.id); }}>Unarchive</Button>}<span className="text-muted-foreground" aria-hidden="true">›</span></div>

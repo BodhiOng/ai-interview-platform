@@ -57,6 +57,16 @@ describe("AssessmentListPage archive workflow", () => {
     expect(screen.queryByText("Frontend Engineer")).not.toBeInTheDocument();
   });
 
+  it("selects an assessment when its body is clicked in selection mode", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Select" }));
+    await user.click(screen.getByText("Frontend Engineer"));
+
+    expect(screen.getByRole("checkbox", { name: "Select Frontend Engineer" })).toBeChecked();
+  });
+
   it("loads archived assessments and supports unarchiving", async () => {
     const user = userEvent.setup();
     mockedAssessmentsApi.list
