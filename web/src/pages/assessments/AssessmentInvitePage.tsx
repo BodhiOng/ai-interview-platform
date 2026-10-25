@@ -233,7 +233,7 @@ export default function AssessmentInvitePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
@@ -324,7 +324,8 @@ export default function AssessmentInvitePage() {
       <Separator />
 
       {/* Sessions list */}
-      <div className="space-y-2">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] items-start">
+        <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">
             Candidates
@@ -368,22 +369,38 @@ export default function AssessmentInvitePage() {
 
       {/* Assessment skills detail */}
       {assessment?.skills && assessment.skills.length > 0 && (
-        <>
-          <Separator />
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold">Skills assessed</h2>
-            <ul className="space-y-1">
-              {assessment.skills.map((s) => (
-                <li key={s.id ?? s.skill_label} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>•</span>
-                  <span>{s.skill_label}</span>
-                  <span className="text-xs">(expected {LEVEL_LABELS[s.expected_level]})</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </>
+        <div className="lg:col-start-2">
+          <Card>
+            <CardContent className="p-0">
+              <div className="px-4 py-3 border-b">
+                <h2 className="text-sm font-semibold">Skills assessed</h2>
+                <p className="text-xs text-muted-foreground mt-1">Expected competency levels</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="text-left px-4 py-2 font-medium">Skill</th>
+                      <th className="text-right px-4 py-2 font-medium">Level</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assessment.skills.map((skill) => (
+                      <tr key={skill.id ?? skill.skill_label} className="border-b last:border-0">
+                        <td className="px-4 py-2.5 text-muted-foreground">{skill.skill_label}</td>
+                        <td className="px-4 py-2.5 text-right font-medium">
+                          {LEVEL_LABELS[skill.expected_level]}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
+      </div>
     </div>
   );
 }
