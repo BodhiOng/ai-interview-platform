@@ -64,7 +64,7 @@ module Api
       # Pending invites may be withdrawn; active and ended sessions are retained
       # so candidate evidence and audit history cannot be removed accidentally.
       def destroy
-        unless @session.pending?
+        unless RetentionPolicy.session_deletable?(@session.status)
           return json_error("Only pending candidate sessions can be deleted", :conflict)
         end
 

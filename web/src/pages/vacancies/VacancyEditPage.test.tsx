@@ -12,8 +12,6 @@ vi.mock("@/services/vacancies", () => ({
   },
 }));
 
-vi.mock("@dnd-kit/core", () => ({}));
-vi.mock("@dnd-kit/sortable", () => ({}));
 
 const mockedVacanciesApi = vi.mocked(vacanciesApi);
 
@@ -62,7 +60,7 @@ describe("VacancyEditPage", () => {
 
     const reactCard = screen.getByText("React").closest("div.border");
     expect(reactCard).not.toBeNull();
-    await user.click(within(reactCard as HTMLElement).getByRole("button", { name: /remove skill/i }));
+    await user.click(within(reactCard as HTMLElement).getByRole("button", { name: /remove react/i }));
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
     await waitFor(() => expect(mockedVacanciesApi.update).toHaveBeenCalledWith(42, {
@@ -90,9 +88,18 @@ describe("VacancyEditPage", () => {
     expect(card).not.toBeNull();
     expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
 
-    await user.click(within(card as HTMLElement).getByRole("button", { name: "React" }));
+    await user.click(within(card as HTMLElement).getAllByRole("button", { name: /expand react/i })[1]);
     await user.click(within(card as HTMLElement).getByRole("radio", { name: /L4/ }));
 
     expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
+  });
+
+  it("shows an actionable error when the vacancy cannot be loaded", async () => {
+    mockedVacanciesApi.get.mockRejectedValue(new Error("network failure"));
+
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/unable to load this vacancy/i);
+    expect(screen.getByRole("link", { name: /back to vacancies/i })).toBeVisible();
   });
 });

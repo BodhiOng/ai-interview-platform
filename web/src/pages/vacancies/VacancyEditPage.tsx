@@ -8,18 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import LevelRadio from "@/components/assessment/LevelRadio";
 import SkillPicker from "@/components/assessment/SkillPicker";
+import VacancySkillCard, { type VacancyFormValues } from "@/components/vacancy/VacancySkillCard";
 import { vacanciesApi } from "@/services/vacancies";
-import { AlertCircle, ArrowLeft, ChevronDown, ChevronRight, Plus, X, Loader2, Save } from "lucide-react";
-import type { VacancySkill } from "@/types";
-
-interface VacancyFormValues {
-  role_title: string;
-  culture_dimensions: string;
-  competency_expectations: string;
-  skills: Partial<VacancySkill>[];
-}
+import { AlertCircle, ArrowLeft, Plus, Loader2, Save } from "lucide-react";
 
 export default function VacancyEditPage() {
   const { id } = useParams<{ id: string }>();
@@ -28,7 +20,7 @@ export default function VacancyEditPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expandedSkills, setExpandedSkills] = useState<Set<string>>(new Set());
+  const [loadError, setLoadError] = useState<string | null>(null);
   const removedSkillIds = useRef<Set<number>>(new Set());
 
   const form = useForm<VacancyFormValues>({
@@ -37,20 +29,12 @@ export default function VacancyEditPage() {
   const { register, handleSubmit, control, setValue, watch, reset, formState: { errors, isDirty } } = form;
   const { fields, append, remove } = useFieldArray({ control, name: "skills" });
 
-  const toggleSkill = (skillId: string) => {
-    setExpandedSkills((current) => {
-      const next = new Set(current);
-      next.has(skillId) ? next.delete(skillId) : next.add(skillId);
-      return next;
-    });
-  };
-
   useEffect(() => {
     vacanciesApi.get(Number(id)).then((res) => {
       const v = res.data.vacancy;
       removedSkillIds.current.clear();
       reset({ role_title: v.role_title, culture_dimensions: v.culture_dimensions, competency_expectations: v.competency_expectations, skills: v.skills });
-    }).catch(() => {}).finally(() => setLoading(false));
+    }).catch(() => setLoadError("Unable to load this vacancy. Please refresh or return to vacancies.")).finally(() => setLoading(false));
   }, [id, reset]);
 
   useEffect(() => {
@@ -96,6 +80,7 @@ export default function VacancyEditPage() {
   };
 
   if (loading) return <div className="max-w-2xl mx-auto space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-10 w-full" /></div>;
+  if (loadError) return <div className="max-w-2xl mx-auto space-y-4" role="alert"><p className="text-sm text-destructive">{loadError}</p><Link to="/vacancies" className="text-sm text-primary hover:underline">Back to vacancies</Link></div>;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -114,18 +99,9 @@ export default function VacancyEditPage() {
         <div className="space-y-3">
           <Label>Expected skills</Label>
           <p className="text-sm text-muted-foreground">Set the minimum proficiency required for this role. These levels are used by Fit/Gap analysis.</p>
-          {fields.map((field, index) => (
-            <div key={field.id} className="border rounded-lg">
-              <div className="flex cursor-pointer items-center gap-2 p-3 hover:bg-muted/30" role="button" tabIndex={0} onClick={() => toggleSkill(field.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); toggleSkill(field.id); } }} aria-expanded={expandedSkills.has(field.id)}>
-                <span className="rounded p-1 text-muted-foreground" aria-hidden="true">
-                  {expandedSkills.has(field.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{watch(`skills.${index}.skill_label`)}</span>
-                <button type="button" onClick={(event) => { event.stopPropagation(); removeSkill(index); }} className="text-muted-foreground hover:text-destructive" aria-label="Remove skill"><X className="h-4 w-4" /></button>
-              </div>
-              {expandedSkills.has(field.id) && <div className="border-t px-3 pb-3 pt-3"><div className="space-y-1"><span className="text-xs text-muted-foreground">Required proficiency</span><LevelRadio value={watch(`skills.${index}.expected_level`) ?? 3} onChange={(v) => setValue(`skills.${index}.expected_level`, v, { shouldDirty: true, shouldValidate: true })} /></div></div>}
-            </div>
-          ))}
+          <div className="space-y-2">
+            {fields.map((field, index) => <VacancySkillCard key={field.id} index={index} form={form} onRemove={() => removeSkill(index)} />)}
+          </div>
           <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Add skill
           </Button>

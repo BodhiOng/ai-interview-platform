@@ -130,4 +130,13 @@ describe("AssessmentEditPage", () => {
 
     expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
   });
+
+  it("shows an actionable error when the assessment cannot be loaded", async () => {
+    mockedAssessmentsApi.get.mockRejectedValue(new Error("network failure"));
+
+    renderPage();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/unable to load this assessment/i);
+    expect(screen.getByRole("link", { name: /back to assessment/i })).toBeVisible();
+  });
 });

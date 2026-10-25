@@ -4,7 +4,7 @@ import { Provider, useSetAtom } from "jotai";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 import ProtectedRoute from "./ProtectedRoute";
-import { authAtom } from "@/stores/authAtom";
+import { authAtom, clearToken } from "@/stores/authAtom";
 
 function AuthHarness({ token }: { token: string | null }) {
   const setAuth = useSetAtom(authAtom);
@@ -21,7 +21,7 @@ function AuthHarness({ token }: { token: string | null }) {
     <MemoryRouter initialEntries={["/admin"]}>
       <Routes>
         <Route element={<ProtectedRoute />}>
-          <Route path="/admin" element={<div>Protected admin page</div>} />
+        <Route path="/admin" element={<><div>Protected admin page</div><button onClick={() => { clearToken(); setAuth({ token: null, email: null }); }}>Log out</button></>} />
         </Route>
         <Route path="/login" element={<div>Login page</div>} />
       </Routes>
@@ -67,5 +67,16 @@ describe("ProtectedRoute", () => {
       expect(screen.getByText("Protected admin page")).toBeInTheDocument();
     });
     expect(screen.queryByText("Login page")).not.toBeInTheDocument();
+  });
+
+  it("removes access immediately after logout instead of restoring it on navigation", async () => {
+    const user = (await import("@testing-library/user-event")).default.setup();
+    renderProtectedRoute("login-token");
+
+    await waitFor(() => expect(screen.getByText("Protected admin page")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Log out" }));
+
+    await waitFor(() => expect(screen.getByText("Login page")).toBeInTheDocument());
+    expect(screen.queryByText("Protected admin page")).not.toBeInTheDocument();
   });
 });

@@ -48,7 +48,7 @@ module Api
 
       # DELETE /api/v1/vacancies/:id
       def destroy
-        if @vacancy.fit_gap_reports.exists?
+        if RetentionPolicy.vacancy_action(has_fit_gap_reports: @vacancy.fit_gap_reports.exists?) == :archive
           @vacancy.update!(archived_at: Time.current)
           json_response(message: "Vacancy archived; Fit/Gap reports preserved")
         elsif @vacancy.destroy

@@ -37,6 +37,7 @@ export default function AssessmentEditPage() {
   const [submitting, setSubmitting] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const removedSkillIds = useRef<Set<number>>(new Set());
 
   const form = useForm<AssessmentFormValues>({
@@ -54,7 +55,7 @@ export default function AssessmentEditPage() {
         removedSkillIds.current.clear();
         reset({ name: a.name, time_limit_min: a.time_limit_min, skills: a.skills });
       })
-      .catch(() => {})
+      .catch(() => setLoadError("Unable to load this assessment. Please refresh or return to the assessment."))
       .finally(() => setLoading(false));
   }, [id, reset]);
 
@@ -126,6 +127,15 @@ export default function AssessmentEditPage() {
         <Skeleton className="h-10 w-full" />
         <Skeleton className="h-10 w-40" />
         <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4" role="alert">
+        <p className="text-sm text-destructive">{loadError}</p>
+        <Link to={`/assessments/${id}/invite`} className="text-sm text-primary hover:underline">Back to assessment</Link>
       </div>
     );
   }
