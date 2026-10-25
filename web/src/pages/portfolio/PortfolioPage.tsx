@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,7 @@ import { sessionsApi } from "@/services/sessions";
 import { vacanciesApi } from "@/services/vacancies";
 import { portfoliosApi } from "@/services/portfolios";
 import { usePolling } from "@/hooks/usePolling";
-import { ArrowLeft, Download, Eye, Loader2, RefreshCw, Zap, FileText } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, Eye, FileText, Loader2, RefreshCw, UserRound, Zap } from "lucide-react";
 import type { Portfolio, PortfolioRevision, AssessorOverride, Vacancy } from "@/types";
 
 export default function PortfolioPage() {
@@ -126,22 +127,24 @@ export default function PortfolioPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-2">
-          <Link to={`/assessments/${id}/invite`} className="text-muted-foreground hover:text-foreground">
+          <Link to={`/assessments/${id}/invite`} aria-label="Back to candidates" className="mt-1 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div>
-            <h1 className="text-lg font-semibold">Portfolio Results</h1>
-            {candidateName && (
-              <p className="text-sm text-muted-foreground">{candidateName}</p>
-            )}
+            <p className="text-xs font-medium uppercase tracking-wider text-primary">Candidate results</p>
+            <h1 className="mt-1 text-2xl font-semibold tracking-tight">Portfolio results</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {candidateName && <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><UserRound className="h-3.5 w-3.5" />{candidateName}</span>}
+              {portfolio?.generation_status === "complete" && <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2.5 py-1 text-xs font-medium text-green-600"><CheckCircle2 className="h-3.5 w-3.5" />Complete</span>}
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
           <Link
             to={`/assessments/${id}/sessions/${sessionId}/transcript`}
             className="inline-flex items-center gap-1 text-sm border rounded-md px-3 py-1.5 hover:bg-accent transition-colors"
@@ -218,9 +221,15 @@ export default function PortfolioPage() {
       {!generating && portfolio?.generation_status === "complete" && (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] items-start">
           <main className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Skills assessed</p><p className="mt-1 text-2xl font-semibold">{displayedSkills.length}</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Discovered skills</p><p className="mt-1 text-2xl font-semibold">{displayedSkills.filter((skill) => skill.is_discovered).length}</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs text-muted-foreground">Assessor overrides</p><p className="mt-1 text-2xl font-semibold">{displayedOverrides.length}</p></CardContent></Card>
+          </div>
+
           {/* Configured skills */}
           <div className="space-y-3">
-            <h2 className="text-sm font-semibold">Configured Skills</h2>
+            <h2 className="text-base font-semibold">Configured skills <span className="font-normal text-muted-foreground">({displayedSkills.filter((s) => !s.is_discovered).length})</span></h2>
             {displayedSkills
               .filter((s) => !s.is_discovered)
               .map((skill) => (
@@ -240,7 +249,7 @@ export default function PortfolioPage() {
               <Separator />
               <div className="space-y-3">
                 <div>
-                  <h2 className="text-sm font-semibold flex items-center gap-1.5">
+                  <h2 className="text-base font-semibold flex items-center gap-1.5">
                     <Zap className="h-4 w-4 text-amber-500" />
                     Discovered Skills
                   </h2>
@@ -270,7 +279,7 @@ export default function PortfolioPage() {
           {revisions.length > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold">Portfolio history</h2>
+                  <h2 className="text-base font-semibold">Portfolio history</h2>
                 {selectedRevision && (
                   <Button variant="ghost" size="sm" onClick={() => setSelectedRevision(null)}>
                     View current
@@ -283,7 +292,8 @@ export default function PortfolioPage() {
                     key={revision.id}
                     type="button"
                     onClick={() => setSelectedRevision(revision)}
-                    className={`w-full px-3 py-2 text-xs flex items-center justify-between text-left transition-colors hover:bg-accent ${
+                    aria-pressed={selectedRevision?.id === revision.id}
+                    className={`w-full px-3 py-2 text-xs flex items-center justify-between text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                       selectedRevision?.id === revision.id ? "bg-accent" : ""
                     }`}
                   >

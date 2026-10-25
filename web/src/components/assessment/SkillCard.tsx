@@ -18,6 +18,7 @@ interface SkillCardProps {
 
 export default function SkillCard({ index, id, form, onRemove }: SkillCardProps) {
   const [anchorsOpen, setAnchorsOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
@@ -61,6 +62,16 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
 
         <button
           type="button"
+          onClick={() => setCollapsed((current) => !current)}
+          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`${collapsed ? "Expand" : "Collapse"} ${skillLabel}`}
+          aria-expanded={!collapsed}
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+
+        <button
+          type="button"
           onClick={onRemove}
           className="text-muted-foreground hover:text-destructive transition-colors"
           aria-label="Remove skill"
@@ -70,7 +81,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
       </div>
 
       {/* Card body */}
-      <div className="px-3 pb-3 space-y-3">
+      {!collapsed && <div className="px-3 pb-3 space-y-3">
         {isCustom ? (
           <CustomSkillForm index={index} form={form} />
         ) : (
@@ -107,7 +118,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
             </div>
           </div>
         )}
-      </div>
+      </div>}
     </div>
   );
 }
